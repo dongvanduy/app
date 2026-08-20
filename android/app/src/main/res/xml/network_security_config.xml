@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">https://pembd-adapter.cns.myfiinet.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+            <certificates src="@raw/digicert_global_root_g2" />
+            <certificates src="@raw/digicert_g_root_g2" />
+            <certificates src="@raw/thawte_tls_rsa_ca_g1" />
+            <certificates src="@raw/thawte_tls_rsa_ca_g1_pem" />
+
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
