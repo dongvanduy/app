@@ -17,4 +17,14 @@ class ApiConfig {
     'SCAN_API_BASE_URL',
     defaultValue: '$host/api/Scan/',
   );
+
+  static const String dataCloudBaseUrl = String.fromEnvironment(
+    'DATA_CLOUD_API_BASE_URL',
+    defaultValue: '$host/api/data/',
+  );
+
+  static const String dataCloudRootPath = String.fromEnvironment(
+    'DATA_CLOUD_ROOT_PATH',
+    defaultValue: r'D:\DataCloud',
+  );
 }

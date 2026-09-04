@@ -95,14 +95,17 @@ void main() async {
     connectivity: Connectivity(),
   );
   final themeProvider = ThemeProvider();
-  final dataCloudProvider = DatacloudProvider(); // Khởi tạo DataCloudProvider
+  final dataCloudProvider = DatacloudProvider(
+    baseUrl: ApiConfig.dataCloudBaseUrl,
+    rootPath: ApiConfig.dataCloudRootPath,
+    authTokenProvider: authRepository,
+  );
   final languageProvider = LanguageProvider();
 
   // Khởi tạo async cho các provider
   await Future.wait([
     authProvider.initialize(),
     themeProvider.initialize(),
-    dataCloudProvider.fetchDataCloud(),
     languageProvider.initialize(),
   ]);
 

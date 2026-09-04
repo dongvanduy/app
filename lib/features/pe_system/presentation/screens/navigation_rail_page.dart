@@ -97,7 +97,7 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
               children: [
                 const HomePage(),
                 const Center(child: Text('Bookmarks Page')),
-                git SettingsPage(onLogout: () => _logout(context)),
+                SettingsPage(onLogout: () => _logout(context)),
               ],
             ),
 
