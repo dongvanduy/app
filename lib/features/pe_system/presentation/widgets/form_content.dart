@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/code_provider.dart';
+
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class FormContent extends StatefulWidget {
-  final void Function(BuildContext, String, String) onLogin;
+  final Future<void> Function(BuildContext, String, String) onLogin;
 
   const FormContent({super.key, required this.onLogin});
 
   @override
-  _FormContentState createState() => _FormContentState();
+  State<FormContent> createState() => _FormContentState();
 }
 
 class _FormContentState extends State<FormContent> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
@@ -27,47 +28,44 @@ class _FormContentState extends State<FormContent> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _loadRememberMe() async {
+  Future<void> _loadRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('email');
-    final password = prefs.getString('password');
-    if (email != null && password != null) {
-      _emailController.text = email;
-      _passwordController.text = password;
-      setState(() {
-        _rememberMe = true;
-      });
+    final username =
+        prefs.getString('remembered_username') ?? prefs.getString('email');
+
+    // Remove credentials stored by the former mock-login implementation.
+    await prefs.remove('password');
+    await prefs.remove('isLoggedIn');
+    if (!mounted || username == null || username.trim().isEmpty) {
+      return;
     }
+
+    _usernameController.text = username.trim();
+    setState(() => _rememberMe = true);
   }
 
-  void _saveRememberMe() async {
+  Future<void> _saveRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
     if (_rememberMe) {
-      await prefs.setString('email', _emailController.text.trim());
-      await prefs.setString('password', _passwordController.text.trim());
+      await prefs.setString(
+        'remembered_username',
+        _usernameController.text.trim(),
+      );
     } else {
-      await prefs.remove('email');
-      await prefs.remove('password');
+      await prefs.remove('remembered_username');
     }
+    await prefs.remove('email');
+    await prefs.remove('password');
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CodeProvider>(context);
-
-    // Hiển thị lỗi qua SnackBar
-    if (provider.loginError != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(provider.loginError!)),
-        );
-      });
-    }
+    final provider = context.watch<AuthProvider>();
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 300),
@@ -78,23 +76,18 @@ class _FormContentState extends State<FormContent> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextFormField(
-              controller: _emailController,
+              controller: _usernameController,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập email';
-                }
-                bool emailValid = RegExp(
-                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-                    .hasMatch(value);
-                if (!emailValid) {
-                  return 'Vui lòng nhập email hợp lệ';
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập mã thẻ hoặc username';
                 }
                 return null;
               },
+              onChanged: (_) => provider.clearLoginError(),
               decoration: const InputDecoration(
-                labelText: 'Email',
-                hintText: 'Nhập email của bạn',
-                prefixIcon: Icon(Icons.email_outlined),
+                labelText: 'Mã thẻ / Username',
+                hintText: 'Nhập mã thẻ của bạn',
+                prefixIcon: Icon(Icons.badge_outlined),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -105,11 +98,9 @@ class _FormContentState extends State<FormContent> {
                 if (value == null || value.isEmpty) {
                   return 'Vui lòng nhập mật khẩu';
                 }
-                if (value.length < 6) {
-                  return 'Mật khẩu phải có ít nhất 6 ký tự';
-                }
                 return null;
               },
+              onChanged: (_) => provider.clearLoginError(),
               obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
                 labelText: 'Mật khẩu',
@@ -148,37 +139,41 @@ class _FormContentState extends State<FormContent> {
               child: provider.isLoggingIn
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                onPressed: () {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    _saveRememberMe();
-                    widget.onLogin(
-                      context,
-                      _emailController.text.trim(),
-                      _passwordController.text.trim(),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Vui lòng kiểm tra email và mật khẩu')),
-                    );
-                  }
-                },
-                child: const Padding(
-                  padding: EdgeInsets.all(10.0),
-                  child: Text(
-                    'Đăng nhập',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (_formKey.currentState?.validate() ?? false) {
+                          await _saveRememberMe();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          await widget.onLogin(
+                            context,
+                            _usernameController.text.trim(),
+                            _passwordController.text,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'Vui lòng kiểm tra username và mật khẩu')),
+                          );
+                        }
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(10.0),
+                        child: Text(
+                          'Đăng nhập',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ],
         ),

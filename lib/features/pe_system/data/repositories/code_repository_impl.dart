@@ -1,6 +1,5 @@
 import '../../../../core/error/exceptions.dart';
 import '../../domain/entities/code_entity.dart';
-import '../../domain/entities/user_entity.dart';
 import '../../domain/entities/search_list_entity.dart';
 import '../../domain/repositories/code_repository.dart';
 import '../datasources/remote_datasource.dart';
@@ -8,9 +7,7 @@ import '../datasources/remote_datasource.dart';
 class CodeRepositoryImpl implements CodeRepository {
   final RemoteDataSource remoteDataSource;
 
-  CodeRepositoryImpl({
-    required this.remoteDataSource
-  });
+  CodeRepositoryImpl({required this.remoteDataSource});
 
   @override
   Future<List<SearchListEntity>> getSearchList() async {
@@ -18,24 +15,24 @@ class CodeRepositoryImpl implements CodeRepository {
       final searchLists = await remoteDataSource.getSearchList();
       return searchLists
           .map((model) => SearchListEntity(
-        id: model.id,
-        listName: model.listName,
-        createdAt: model.createdAt,
-        createdBy: model.createdBy,
-        items: model.items
-            .map((item) => CodeEntity(
-          id: item.id,
-          serialNumber: item.serialNumber,
-          modelName: item.modelName,
-          shelfCode: item.shelfCode,
-          columnNumber: item.columnNumber,
-          levelNumber: item.levelNumber,
-          trayNumber: item.trayNumber,
-          positionInTray: item.positionInTray,
-          isFound: item.isFound,
-        ))
-            .toList(),
-      ))
+                id: model.id,
+                listName: model.listName,
+                createdAt: model.createdAt,
+                createdBy: model.createdBy,
+                items: model.items
+                    .map((item) => CodeEntity(
+                          id: item.id,
+                          serialNumber: item.serialNumber,
+                          modelName: item.modelName,
+                          shelfCode: item.shelfCode,
+                          columnNumber: item.columnNumber,
+                          levelNumber: item.levelNumber,
+                          trayNumber: item.trayNumber,
+                          positionInTray: item.positionInTray,
+                          isFound: item.isFound,
+                        ))
+                    .toList(),
+              ))
           .toList();
     } on ServerException {
       rethrow;
@@ -45,23 +42,13 @@ class CodeRepositoryImpl implements CodeRepository {
   }
 
   @override
-  Future<bool> updateScannedStatus(int searchListId, String serialNumber, bool isFound) async {
+  Future<bool> scanSerialNumber(String serialNumber) async {
     try {
-      return await remoteDataSource.updateScannedStatus(searchListId, serialNumber, isFound);
+      return await remoteDataSource.scanSerialNumber(serialNumber);
     } on ServerException {
       rethrow;
     } catch (e) {
-      throw ServerException('Lỗi cập nhật trạng thái: $e');
-    }
-  }
-
-  @override
-  Future<UserEntity> login(String email, String password) async {
-    try {
-      final userModel = await remoteDataSource.login(email, password);
-      return UserEntity(id: userModel.id, email: userModel.email);
-    } catch (e) {
-      rethrow;
+      throw ServerException('Lỗi ghi nhận mã đã quét: $e');
     }
   }
 
@@ -74,5 +61,4 @@ class CodeRepositoryImpl implements CodeRepository {
   Future<bool> checkCode(String serialNumber) {
     throw UnimplementedError(); // Không còn cần thiết vì dùng updateScannedStatus
   }
-
 }

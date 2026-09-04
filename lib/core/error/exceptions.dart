@@ -1,17 +1,39 @@
-// xử lý lôĩ (API, mạng, ...)
-//ServerException: Xử lý lỗi từ server (như lỗi mạng, API).
+enum ApiFailureKind {
+  network,
+  timeout,
+  unauthorized,
+  forbidden,
+  notFound,
+  conflict,
+  server,
+  invalidResponse,
+  business,
+  unknown,
+}
+
 class ServerException implements Exception {
   final String message;
-  ServerException(this.message);
+  final int? statusCode;
+  final ApiFailureKind kind;
+  final List<String> invalidSerials;
+  final Object? responseData;
+
+  const ServerException(
+    this.message, {
+    this.statusCode,
+    this.kind = ApiFailureKind.unknown,
+    this.invalidSerials = const <String>[],
+    this.responseData,
+  });
 
   @override
   String toString() => message;
 }
 
-//ValidationException: Xử lý lỗi xác thực (như email/password không hợp lệ).
 class ValidationException implements Exception {
   final String message;
-  ValidationException(this.message);
+
+  const ValidationException(this.message);
 
   @override
   String toString() => message;

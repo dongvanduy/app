@@ -68,7 +68,7 @@ class SearchListModel {
   factory SearchListModel.fromJson(Map<String, dynamic> json) {
     print('Parsing SearchListModel: $json'); // Thêm log để kiểm tra JSON
     return SearchListModel(
-      id: json['id']?.toString() ?? '', // Chú ý: API trả về "id" (chữ thường)
+      id: (json['searchListId'] ?? json['id'])?.toString() ?? '',
       listName: json['listName'] ?? '',
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       createdBy: json['createdBy'] ?? '',

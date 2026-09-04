@@ -1,14 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../../../core/error/exceptions.dart';
 import '../../domain/entities/code_entity.dart';
-import '../../domain/entities/user_entity.dart';
 import '../../domain/entities/search_list_entity.dart';
 import '../../domain/usecases/manage_codes_usecase.dart';
 
@@ -23,10 +19,6 @@ class CodeProvider with ChangeNotifier {
   List<String> _recentlyScannedCodes = [];
   bool _isLoading = false;
   String? _error;
-
-  UserEntity? _user;
-  bool _isLoggingIn = false;
-  String? _loginError;
 
   int _selectedIndex = 0;
   int? _selectedSearchListIndex;
@@ -47,21 +39,11 @@ class CodeProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  UserEntity? get user => _user;
-  bool get isLoggingIn => _isLoggingIn;
-  String? get loginError => _loginError;
-
   int get selectedIndex => _selectedIndex;
   int? get selectedSearchListIndex => _selectedSearchListIndex;
 
   int get foundCount => _foundCodes.length;
   int get totalCount => _codeList.length;
-
-  bool _isLoggedIn = false;
-  bool get isLoggedIn => _isLoggedIn;
-
-  bool _isInitialized = false;
-  bool get isInitialized => _isInitialized;
 
   String? get scannedSerialNumber => _scannedSerialNumber;
   String? get retestResult => _retestResult;
@@ -77,57 +59,12 @@ class CodeProvider with ChangeNotifier {
     required this.connectivity,
   });
 
-  Future<void> initialize() async {
-    if (!_isInitialized) {
-      await _loadLoginStatus();
-      _isInitialized = true;
-      notifyListeners();
-    }
-  }
-
-  Future<void> _loadLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    notifyListeners();
-  }
-
   Future<bool> _isConnected() async {
     final result = await connectivity.checkConnectivity();
     return result != ConnectivityResult.none;
   }
 
-  Future<bool> login(String email, String password) async {
-    try {
-      _isLoggingIn = true;
-      _loginError = null;
-      notifyListeners();
-
-      await Future.delayed(const Duration(seconds: 1));
-      if (email == 'test@example.com' && password == 'password') {
-        _user = UserEntity.fromJson({'id': 1, 'email': email});
-        _isLoggedIn = true;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await fetchSearchList();
-        _isLoggingIn = false;
-        notifyListeners();
-        return true;
-      } else {
-        _loginError = 'Email hoặc mật khẩu không đúng';
-        _isLoggingIn = false;
-        notifyListeners();
-        return false;
-      }
-    } catch (e) {
-      _loginError = 'Lỗi đăng nhập: $e';
-      _isLoggingIn = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<void> logout() async {
-    _user = null;
+  void resetSessionState() {
     _selectedIndex = 0;
     _searchLists = [];
     _codeList = [];
@@ -135,9 +72,6 @@ class CodeProvider with ChangeNotifier {
     _orderedFoundCodes = [];
     _recentlyScannedCodes = [];
     _selectedSearchListIndex = null;
-    _isLoggedIn = false;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
     notifyListeners();
   }
 
@@ -163,56 +97,83 @@ class CodeProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateScannedStatus(int searchListId, String serialNumber, bool isScanned) async {
-    try {
-      if (_foundCodes.contains(serialNumber)) {
-        _orderedFoundCodes.remove(serialNumber);
-        _recentlyScannedCodes.remove(serialNumber);
-        _orderedFoundCodes.insert(0, serialNumber);
-        _recentlyScannedCodes.insert(0, serialNumber);
-      } else {
-        await useCase.updateScannedStatus(searchListId, serialNumber, isScanned);
-        _foundCodes.add(serialNumber);
-        _orderedFoundCodes.insert(0, serialNumber);
-        _recentlyScannedCodes.insert(0, serialNumber);
-      }
-
-      final existingCode = _codeList.firstWhere(
-            (item) => item.serialNumber == serialNumber,
-        orElse: () => CodeEntity(
-          id: '',
-          serialNumber: serialNumber,
-          modelName: '',
-          shelfCode: '',
-          isFound: true,
-        ),
-      );
-      _codeList = [
-        existingCode.copyWith(isFound: true, foundOrder: 1),
-        ..._codeList
-            .where((item) => item.serialNumber != serialNumber)
-            .map((item) => item.isFound && _orderedFoundCodes.contains(item.serialNumber)
-                ? item.copyWith(foundOrder: _orderedFoundCodes.indexOf(item.serialNumber) + 1)
-                : item),
-      ];
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
-    }
-  }
-
-  Future<bool> handleScanCode(String code, int? searchListId) async {
-    if (searchListId == null) {
+  Future<bool> handleScanCode(String rawCode) async {
+    if (_selectedSearchListIndex == null) {
       _error = 'Vui lòng chọn một danh sách trước khi quét!';
       notifyListeners();
       return false;
     }
-    code = code.trim();
 
-    // Cập nhật trạng thái isFound
-    await updateScannedStatus(searchListId, code, true);
-    return foundCodes.contains(code);
+    final serialNumber = rawCode.trim();
+    if (serialNumber.isEmpty) {
+      _error = 'Serial Number không được để trống.';
+      notifyListeners();
+      return false;
+    }
+
+    final codeExists = _codeList.any(
+      (item) => item.serialNumber == serialNumber,
+    );
+    if (!codeExists) {
+      _error = 'SN $serialNumber không nằm trong danh sách đã chọn.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_foundCodes.contains(serialNumber)) {
+      _promoteFoundCode(serialNumber);
+      _error = null;
+      notifyListeners();
+      return true;
+    }
+
+    try {
+      await useCase.scanSerialNumber(serialNumber);
+      _promoteFoundCode(serialNumber);
+      _error = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void _promoteFoundCode(String serialNumber) {
+    if (!_foundCodes.contains(serialNumber)) {
+      _foundCodes.add(serialNumber);
+    }
+
+    _orderedFoundCodes.remove(serialNumber);
+    _recentlyScannedCodes.remove(serialNumber);
+    _orderedFoundCodes.insert(0, serialNumber);
+    _recentlyScannedCodes.insert(0, serialNumber);
+
+    final scannedCode = _codeList.firstWhere(
+      (item) => item.serialNumber == serialNumber,
+    );
+    _codeList = [
+      scannedCode.copyWith(isFound: true, foundOrder: 1),
+      ..._codeList
+          .where((item) => item.serialNumber != serialNumber)
+          .map((item) {
+        if (item.isFound && _orderedFoundCodes.contains(item.serialNumber)) {
+          return item.copyWith(
+            foundOrder: _orderedFoundCodes.indexOf(item.serialNumber) + 1,
+          );
+        }
+        return item;
+      }),
+    ];
+
+    final selectedIndex = _selectedSearchListIndex!;
+    _searchLists = [
+      for (var index = 0; index < _searchLists.length; index++)
+        index == selectedIndex
+            ? _searchLists[index].copyWith(items: List.of(_codeList))
+            : _searchLists[index],
+    ];
   }
 
   void setSelectedIndex(int index) {
@@ -240,13 +201,11 @@ class CodeProvider with ChangeNotifier {
       _orderedFoundCodes = _foundCodes.toList();
       _codeList = _codeList.map((item) {
         if (_orderedFoundCodes.contains(item.serialNumber)) {
-          return item.copyWith(foundOrder: _orderedFoundCodes.indexOf(item.serialNumber) + 1);
+          return item.copyWith(
+              foundOrder: _orderedFoundCodes.indexOf(item.serialNumber) + 1);
         }
         return item;
       }).toList();
-
-
-
     } else {
       _codeList = [];
       _foundCodes = [];
@@ -300,8 +259,11 @@ class CodeProvider with ChangeNotifier {
 
   // Gửi kết quả Retest lên API
   Future<void> submitRetest() async {
-    if (_scannedSerialNumber == null || _retestResult == null || _retestImage == null) {
-      print('Validation failed: serialNumber=$_scannedSerialNumber, result=$_retestResult, image=$_retestImage');
+    if (_scannedSerialNumber == null ||
+        _retestResult == null ||
+        _retestImage == null) {
+      print(
+          'Validation failed: serialNumber=$_scannedSerialNumber, result=$_retestResult, image=$_retestImage');
       _retestError = 'Vui lòng điền đầy đủ thông tin (mã, trạng thái, và ảnh).';
       notifyListeners();
       return;
@@ -328,11 +290,13 @@ class CodeProvider with ChangeNotifier {
     print('Starting submission process...');
 
     try {
-      print('Sending: serialNumber=$_scannedSerialNumber, status=$_retestResult, employeeId=$_employeeId, notes=$_notes, handOverStatus=$_handOverStatus, imagePath=${_retestImage!.path}');
+      print(
+          'Sending: serialNumber=$_scannedSerialNumber, status=$_retestResult, employeeId=$_employeeId, notes=$_notes, handOverStatus=$_handOverStatus, imagePath=${_retestImage!.path}');
       final client = _createIoClient();
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://pembd-adapter.cns.myfiinet.com/api/RetestResult/submit-with-img'),
+        Uri.parse(
+            'https://pembd-adapter.cns.myfiinet.com/api/RetestResult/submit-with-img'),
       );
 
       request.fields['serialNumber'] = _scannedSerialNumber!;
@@ -340,9 +304,11 @@ class CodeProvider with ChangeNotifier {
       request.fields['employeeId'] = _employeeId;
       request.fields['notes'] = _notes ?? '';
       request.fields['handOverStatus'] = _handOverStatus;
-      request.files.add(await http.MultipartFile.fromPath('image', _retestImage!.path));
+      request.files
+          .add(await http.MultipartFile.fromPath('image', _retestImage!.path));
 
-      var response = await client.send(request).timeout(const Duration(seconds: 60));
+      var response =
+          await client.send(request).timeout(const Duration(seconds: 60));
 
       print('API response status: ${response.statusCode}');
       var responseBody = await http.Response.fromStream(response);
@@ -357,7 +323,8 @@ class CodeProvider with ChangeNotifier {
         _retestError = null;
       } else {
         print('Submission failed with status: ${response.statusCode}');
-        _retestError = 'Lỗi khi gửi kết quả: ${response.statusCode} - ${responseBody.body}';
+        _retestError =
+            'Lỗi khi gửi kết quả: ${response.statusCode} - ${responseBody.body}';
       }
     } catch (e) {
       print('Error in submitRetest: $e');
@@ -374,13 +341,18 @@ class CodeProvider with ChangeNotifier {
     try {
       final client = _createIoClient();
       final response = await client.get(
-        Uri.parse('https://pembd-adapter.cns.myfiinet.com/api/RetestResult/get-result/$serialNumber'),
+        Uri.parse(
+            'https://pembd-adapter.cns.myfiinet.com/api/RetestResult/get-result/$serialNumber'),
       );
 
       if (response.statusCode == 200) {
         return {'success': true, 'data': response.body};
       } else {
-        return {'success': false, 'error': 'Failed to fetch result: ${response.statusCode} - ${response.body}'};
+        return {
+          'success': false,
+          'error':
+              'Failed to fetch result: ${response.statusCode} - ${response.body}'
+        };
       }
     } catch (e) {
       return {'success': false, 'error': e.toString()};
@@ -399,11 +371,8 @@ class CodeProvider with ChangeNotifier {
   Future<void> _requestCameraPermission() async {
     await requestCameraPermission();
   }
+
   http.Client _createIoClient() {
-    final ioClient = HttpClient()
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) =>
-      host == 'pembd-adapter.cns.myfiinet.com';
-    return IOClient(ioClient);
+    return http.Client();
   }
 }

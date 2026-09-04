@@ -57,12 +57,7 @@ class _PESystemScreenState extends State<PESystemScreen> {
     }
 
     print('Handling code: $code, isFromQR: $isFromQR');
-    final isFound = await provider.handleScanCode(
-      code,
-      provider.selectedSearchListIndex != null
-          ? int.parse(provider.searchLists[provider.selectedSearchListIndex!].id)
-          : null,
-    );
+    final isFound = await provider.handleScanCode(code);
     print('isFound: $isFound, error: ${provider.error}');
 
     if (isFound) {

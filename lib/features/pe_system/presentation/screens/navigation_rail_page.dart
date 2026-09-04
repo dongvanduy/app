@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_app/features/pe_system/presentation/screens/home_page.dart';
 import 'package:mobile_app/features/pe_system/presentation/screens/settings_page.dart';
 import 'package:mobile_app/features/pe_system/presentation/screens/sign_in_page.dart';
-import '../../../../core/constants/colors.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../providers/code_provider.dart';
-
-
 
 class NavigationRailPage extends StatefulWidget {
   const NavigationRailPage({super.key});
 
   @override
-  _NavigationRailPageState createState() => _NavigationRailPageState();
+  State<NavigationRailPage> createState() => _NavigationRailPageState();
 }
 
 class _NavigationRailPageState extends State<NavigationRailPage> {
@@ -32,6 +29,7 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
     //   ));
     // });
   }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<CodeProvider>(context);
@@ -42,28 +40,28 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
     return Scaffold(
       bottomNavigationBar: isSmallScreen
           ? BottomNavigationBar(
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home_outlined),
-            activeIcon: const Icon(Icons.home_rounded),
-            label: AppLocalizations.of(context, 'home'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.bookmark_border_outlined),
-            activeIcon: const Icon(Icons.bookmark_rounded),
-            label: AppLocalizations.of(context, 'detail'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.settings_outlined),
-            activeIcon: const Icon(Icons.settings_rounded),
-            label: AppLocalizations.of(context, 'settings'),
-          ),
-        ],
-        currentIndex: provider.selectedIndex,
-        onTap: (int index) {
-          provider.setSelectedIndex(index);
-        },
-      )
+              items: [
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.home_outlined),
+                  activeIcon: const Icon(Icons.home_rounded),
+                  label: AppLocalizations.of(context, 'home'),
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.bookmark_border_outlined),
+                  activeIcon: const Icon(Icons.bookmark_rounded),
+                  label: AppLocalizations.of(context, 'detail'),
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.settings_outlined),
+                  activeIcon: const Icon(Icons.settings_rounded),
+                  label: AppLocalizations.of(context, 'settings'),
+                ),
+              ],
+              currentIndex: provider.selectedIndex,
+              onTap: (int index) {
+                provider.setSelectedIndex(index);
+              },
+            )
           : null,
       body: Row(
         children: <Widget>[
@@ -94,37 +92,41 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
             ),
           //const VerticalDivider(),
           Expanded(
-              child: IndexedStack(
-                index: provider.selectedIndex,
-                children: [
-                  const HomePage(),
-                  const Center(child: Text('Bookmarks Page')),
-                  SettingsPage(onLogout: () => _logout(context)),
-                ],
-              ),
+            child: IndexedStack(
+              index: provider.selectedIndex,
+              children: [
+                const HomePage(),
+                const Center(child: Text('Bookmarks Page')),
+                git SettingsPage(onLogout: () => _logout(context)),
+              ],
+            ),
 
-              // Expanded( Khong giu lai status khi chuyển page
-              //   child: provider.selectedIndex == 0
-              //       ? const HomeScreen()
-              //       : provider.selectedIndex == 1
-              //       ? const Center(child: Text('Bookmarks Page'))
-              //       : const Center(child: Text('Profile Page')),
-              // )
-              //
+            // Expanded( Khong giu lai status khi chuyển page
+            //   child: provider.selectedIndex == 0
+            //       ? const HomeScreen()
+            //       : provider.selectedIndex == 1
+            //       ? const Center(child: Text('Bookmarks Page'))
+            //       : const Center(child: Text('Profile Page')),
+            // )
+            //
           ),
         ],
       ),
     );
   }
 
-  void _logout(BuildContext context) {
+  Future<void> _logout(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
     final codeProvider = Provider.of<CodeProvider>(context, listen: false);
-    codeProvider.logout();
+    final authLogout = authProvider.logout();
+    codeProvider.resetSessionState();
 
     // Xóa toàn bộ navigation stack và đưa về login
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const SignInPage()),
-          (Route<dynamic> route) => false,
+      (Route<dynamic> route) => false,
     );
+
+    await authLogout;
   }
 }

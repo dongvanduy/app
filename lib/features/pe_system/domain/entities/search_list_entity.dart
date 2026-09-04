@@ -14,4 +14,14 @@ class SearchListEntity {
     required this.createdBy,
     required this.items,
   });
+
+  SearchListEntity copyWith({List<CodeEntity>? items}) {
+    return SearchListEntity(
+      id: id,
+      listName: listName,
+      createdAt: createdAt,
+      createdBy: createdBy,
+      items: items ?? this.items,
+    );
+  }
 }

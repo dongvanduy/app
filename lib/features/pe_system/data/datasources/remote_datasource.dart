@@ -1,8 +1,6 @@
 import '../../../../core/network/api_client.dart';
 import '../../../../core/error/exceptions.dart';
-import '../../domain/entities/code_entity.dart';
 import '../models/code_model.dart';
-import '../models/user_model.dart';
 
 class RemoteDataSource {
   final ApiClient apiClient;
@@ -11,12 +9,19 @@ class RemoteDataSource {
 
   Future<List<SearchListModel>> getSearchList() async {
     try {
-      final response = await apiClient.get('GetSearchList');
+      final response = await apiClient.get('search-lists/details');
       print('API GetSearchList Response: $response');
-      if (response['success'] != true || response['data'] == null) {
-        throw ServerException(response['message'] ?? 'Không thể lấy danh sách mã');
+      if (response is! Map<String, dynamic> || response['success'] != true) {
+        throw ServerException(
+            response['message'] ?? 'Không thể lấy danh sách mã');
       }
-      return (response['data'] as List)
+
+      final data = response['data'];
+      if (data is! Map<String, dynamic> || data['lists'] is! List) {
+        throw ServerException('Dữ liệu danh sách tìm kiếm không hợp lệ');
+      }
+
+      return (data['lists'] as List)
           .map((json) => SearchListModel.fromJson(json))
           .toList();
     } on ServerException catch (e) {
@@ -28,52 +33,28 @@ class RemoteDataSource {
     }
   }
 
-  Future<bool> updateScannedStatus(int searchListId, String serialNumber, bool isFound) async {
+  Future<bool> scanSerialNumber(String serialNumber) async {
     try {
-      final response = await apiClient.post('UpdateScannedStatus', {
-        'searchListId': searchListId,
+      final response = await apiClient.post('scanSN', {
         'serialNumber': serialNumber,
-        'isFound': isFound,
       });
-      print('API UpdateScannedStatus Request: {searchListId: $searchListId, serialNumber: $serialNumber, isFound: $isFound}');
-      print('API UpdateScannedStatus Response: $response');
-      if (response['success'] != true) {
-        final errorMessage = response['message'] ?? 'Không thể cập nhật trạng thái';
-        print('API UpdateScannedStatus Failed: $errorMessage');
+      print('API ScanSN Request: {serialNumber: $serialNumber}');
+      print('API ScanSN Response: $response');
+      if (response is Map<String, dynamic> && response['success'] == false) {
+        final errorMessage =
+            response['message'] ?? 'Không thể ghi nhận mã đã quét';
+        print('API ScanSN Failed: $errorMessage');
         throw ServerException(errorMessage);
       }
       return true;
     } on ServerException catch (e) {
-      print('API UpdateScannedStatus Exception: $e');
+      print('API ScanSN Exception: $e');
       print('Stack trace: ${StackTrace.current}');
       rethrow;
     } catch (e) {
-      print('API UpdateScannedStatus Unexpected Exception: $e');
+      print('API ScanSN Unexpected Exception: $e');
       print('Stack trace: ${StackTrace.current}');
-      throw ServerException('Lỗi cập nhật trạng thái: $e');
-    }
-  }
-
-
-  Future<UserModel> login(String email, String password) async {
-    try {
-      final response = await apiClient.post('login', {
-        'email': email,
-        'password': password,
-      });
-      print('API Login Response: $response');
-      if (response['success'] != true || response['user'] == null) {
-        throw ValidationException('Email hoặc mật khẩu không đúng');
-      }
-      return UserModel.fromJson(response['user']);
-    } catch (e) {
-      print('API Login Error: $e');
-      if (e is ValidationException) {
-        throw e;
-      }
-      throw ServerException('Lỗi đăng nhập: $e');
+      throw ServerException('Lỗi ghi nhận mã đã quét: $e');
     }
   }
 }
-
-

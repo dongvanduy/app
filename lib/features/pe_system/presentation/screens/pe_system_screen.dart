@@ -4,8 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
 import '../../../../core/constants/colors.dart';
-import '../../../../core/error/exceptions.dart';
-import '../../../../core/network/api_client.dart';
 import '../providers/code_provider.dart';
 import '../widgets/code_item.dart';
 import 'qr_scan_page.dart';
@@ -21,9 +19,6 @@ class PESystemScreen extends StatefulWidget {
 class _PESystemScreenState extends State<PESystemScreen> {
   final TextEditingController _scannedCodeController = TextEditingController();
   final FocusNode _scanInputFocus = FocusNode();
-  final ApiClient _scanApiClient = ApiClient(
-    baseUrl: 'https://pembd-adapter.cns.myfiinet.com/api/Scan/',
-  );
   late AudioPlayer _audioPlayer;
   bool _hasFocus = false;
   bool _isFromQR = false;
@@ -64,13 +59,7 @@ class _PESystemScreenState extends State<PESystemScreen> {
       return;
     }
     print('Handling code: $code, isFromQR: $isFromQR');
-    await _logSerialScan(code);
-    final isFound = await provider.handleScanCode(
-      code,
-      provider.selectedSearchListIndex != null
-          ? int.parse(provider.searchLists[provider.selectedSearchListIndex!].id)
-          : null,
-    );
+    final isFound = await provider.handleScanCode(code);
     print('isFound: $isFound, error: ${provider.error}');
 
     //Kích hoạt âm thanh
@@ -137,6 +126,18 @@ class _PESystemScreenState extends State<PESystemScreen> {
       }
     } else {
       if (mounted) {
+        final errorMessage = provider.error;
+        if (errorMessage != null && errorMessage.isNotEmpty) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.red,
+              ),
+            );
+        }
+
         _scannedCodeController.selection = TextSelection(
           baseOffset: 0,
           extentOffset: _scannedCodeController.text.length,
@@ -153,33 +154,6 @@ class _PESystemScreenState extends State<PESystemScreen> {
       }
     }
     _isFromQR = false;
-  }
-
-  Future<void> _logSerialScan(String code) async {
-    final trimmed = code.trim();
-    if (trimmed.isEmpty) {
-      return;
-    }
-
-    try {
-      await _scanApiClient.post('scanSN', {'serialNumber': trimmed});
-    } on ServerException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể ghi nhận SN: ${e.message}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể ghi nhận SN: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   void _openQRScanner() {
@@ -380,26 +354,6 @@ class _PESystemScreenState extends State<PESystemScreen> {
                           textInputAction: TextInputAction.search,
                           onSubmitted: (value) async {
                             await _handleScanCode(value);
-                            if (mounted) {
-                              final provider = context.read<CodeProvider>();
-                              final ok = provider.foundCodes.contains(value);
-                              if (ok) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    behavior: SnackBarBehavior.floating,
-                                    content: const Row(
-                                      children: [
-                                        Icon(Icons.check_circle, color: Colors.white),
-                                        SizedBox(width: 8),
-                                        Text('Tìm thấy!'),
-                                      ],
-                                    ),
-                                    duration: const Duration(seconds: 2),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            }
                           },
                         ),
                       ),

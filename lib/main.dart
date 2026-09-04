@@ -43,7 +43,15 @@ import 'features/pe_system/presentation/providers/language_provider.dart';
 import 'features/pe_system/presentation/screens/sign_in_page.dart';
 import 'features/pe_system/presentation/screens/navigation_rail_page.dart';
 import 'features/pe_system/presentation/screens/pe_system_screen.dart';
+import 'features/inventory_import/data/datasources/inventory_remote_data_source.dart';
+import 'features/inventory_import/data/repositories/inventory_repository_impl.dart';
+import 'features/inventory_import/presentation/providers/inventory_import_provider.dart';
+import 'core/config/api_config.dart';
 import 'core/network/api_client.dart';
+import 'features/auth/data/datasources/auth_remote_data_source.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/data/storage/auth_session_storage.dart';
+import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/pe_system/data/datasources/remote_datasource.dart';
 import 'features/pe_system/data/repositories/code_repository_impl.dart';
 import 'features/pe_system/domain/usecases/manage_codes_usecase.dart';
@@ -53,7 +61,32 @@ import 'core/constants/colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  final apiClient = ApiClient(baseUrl: 'https://pembd-adapter.cns.myfiinet.com/api/Search/');
+
+  final authRemoteDataSource = AuthRemoteDataSource(
+    apiClient: ApiClient(baseUrl: ApiConfig.inventoryBaseUrl),
+  );
+  final authRepository = AuthRepositoryImpl(
+    remoteDataSource: authRemoteDataSource,
+    sessionStorage: SecureAuthSessionStorage(),
+  );
+  final authProvider = AuthProvider(repository: authRepository);
+
+  final apiClient = ApiClient(
+    baseUrl: ApiConfig.scanBaseUrl,
+    authTokenProvider: authRepository,
+  );
+  final inventoryRemoteDataSource = InventoryRemoteDataSource(
+    inventoryApiClient: ApiClient(
+      baseUrl: ApiConfig.inventoryBaseUrl,
+      authTokenProvider: authRepository,
+    ),
+  );
+  final inventoryRepository = InventoryRepositoryImpl(
+    remoteDataSource: inventoryRemoteDataSource,
+  );
+  final inventoryImportProvider = InventoryImportProvider(
+    repository: inventoryRepository,
+  );
   final remoteDataSource = RemoteDataSource(apiClient: apiClient);
   final repository = CodeRepositoryImpl(remoteDataSource: remoteDataSource);
   final useCase = ManageCodesUseCase(repository: repository);
@@ -67,7 +100,7 @@ void main() async {
 
   // Khởi tạo async cho các provider
   await Future.wait([
-    codeProvider.initialize(),
+    authProvider.initialize(),
     themeProvider.initialize(),
     dataCloudProvider.fetchDataCloud(),
     languageProvider.initialize(),
@@ -76,22 +109,23 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => authProvider),
         ChangeNotifierProvider(create: (_) => codeProvider),
         ChangeNotifierProvider(create: (_) => themeProvider),
         ChangeNotifierProvider(create: (_) => dataCloudProvider),
         ChangeNotifierProvider(create: (_) => languageProvider),
+        ChangeNotifierProvider(create: (_) => inventoryImportProvider),
       ],
       child: const MyApp(),
     ),
   );
 }
 
-
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  _MyAppState createState() => _MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -101,19 +135,18 @@ class _MyAppState extends State<MyApp> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     bool isDarkMode = _getIsDarkMode(themeProvider, context);
 
-    print('MyApp: Setting SystemUIOverlayStyle (didChangeDependencies), isDarkMode: $isDarkMode');
     _updateSystemUIOverlayStyle(isDarkMode);
   }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final codeProvider = Provider.of<CodeProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context);
     bool isDarkMode = _getIsDarkMode(themeProvider, context);
-    final appBarBackgroundColor = isDarkMode ? Colors.grey[900] : AppColors.background;
+    final appBarBackgroundColor =
+        isDarkMode ? Colors.grey[900] : AppColors.background;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('MyApp: Applying SystemUIOverlayStyle (post-frame), isDarkMode: $isDarkMode');
       _updateSystemUIOverlayStyle(isDarkMode);
     });
 
@@ -238,7 +271,7 @@ class _MyAppState extends State<MyApp> {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        initialRoute: codeProvider.isLoggedIn ? '/navigation' : '/sign-in',
+        initialRoute: authProvider.isLoggedIn ? '/navigation' : '/sign-in',
         routes: {
           '/sign-in': (context) => const SignInPage(),
           '/navigation': (context) => const NavigationRailPage(),
@@ -261,8 +294,10 @@ class _MyAppState extends State<MyApp> {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
       statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-      systemNavigationBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
-      systemNavigationBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+      systemNavigationBarColor:
+          isDarkMode ? Colors.grey[900] : AppColors.background,
+      systemNavigationBarIconBrightness:
+          isDarkMode ? Brightness.light : Brightness.dark,
     ));
   }
 }

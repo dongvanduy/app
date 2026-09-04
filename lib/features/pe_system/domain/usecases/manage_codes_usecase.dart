@@ -1,5 +1,4 @@
 import '../entities/code_entity.dart';
-import '../entities/user_entity.dart';
 import '../entities/search_list_entity.dart';
 import '../repositories/code_repository.dart';
 
@@ -20,12 +19,7 @@ class ManageCodesUseCase {
     return await repository.getSearchList();
   }
 
-  Future<bool> updateScannedStatus(int searchListId, String serialNumber, bool isFound) async {
-    return await repository.updateScannedStatus(searchListId, serialNumber, isFound);
+  Future<bool> scanSerialNumber(String serialNumber) async {
+    return await repository.scanSerialNumber(serialNumber);
   }
-
-  Future<UserEntity> login(String email, String password) async {
-    return await repository.login(email, password);
-  }
-
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/core/constants/colors.dart';
 import 'package:mobile_app/features/bga_replace/presentation/bga_replace_screen.dart';
+import 'package:mobile_app/features/inventory_import/presentation/screens/inventory_import_screen.dart';
 import 'package:mobile_app/features/pe_system/presentation/screens/retest_screen.dart';
 import '../../../../core/localization/app_localizations.dart';
 import 'data_cloud_screen.dart';
@@ -26,6 +27,19 @@ class HomePage extends StatelessWidget {
             mainAxisSpacing: 16.0,
             childAspectRatio: 1.0,
             children: [
+              _buildFunctionCard(
+                context,
+                icon: Icons.inventory_2_outlined,
+                label: 'Inventory Import',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InventoryImportScreen(),
+                    ),
+                  );
+                },
+              ),
               _buildFunctionCard(
                 context,
                 icon: Icons.memory,

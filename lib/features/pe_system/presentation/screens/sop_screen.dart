@@ -1,10 +1,8 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
@@ -37,12 +35,7 @@ class _SopScreenState extends State<SopScreen> {
   @override
   void initState() {
     super.initState();
-    _client = IOClient(
-      HttpClient()
-        ..badCertificateCallback =
-            (X509Certificate cert, String host, int port) =>
-                host == 'pembd-adapter.cns.myfiinet.com',
-    );
+    _client = http.Client();
     _loadStationHistory();
   }
 
