@@ -39,6 +39,7 @@ class InventoryImportProvider with ChangeNotifier {
   bool _loadingTray = false;
   bool _submitting = false;
   bool _exporting = false;
+  InventoryExportSelection? _pendingExport;
   String? _error;
   String? _operationSummary;
   String? _warning;
@@ -48,7 +49,7 @@ class InventoryImportProvider with ChangeNotifier {
   bool _disposed = false;
 
   InventoryImportProvider({required InventoryRepository repository})
-      : _repository = repository;
+    : _repository = repository;
 
   StockType get stockType => _stockType;
   String get locationInput => _locationInput;
@@ -83,10 +84,8 @@ class InventoryImportProvider with ChangeNotifier {
     );
   }
 
-  int get capacityAfterImport => InventoryValidation.capacityAfterImport(
-        _trayInfo,
-        _serialNumbers.length,
-      );
+  int get capacityAfterImport =>
+      InventoryValidation.capacityAfterImport(_trayInfo, _serialNumbers.length);
 
   bool get isOverCapacity =>
       _stockType.supportsTray &&
@@ -111,12 +110,51 @@ class InventoryImportProvider with ChangeNotifier {
       _trayDuplicateSerials.isEmpty &&
       !isOverCapacity;
 
-  bool get canExport =>
-      !busy &&
-      !_loadingTray &&
-      _stockType.supportsTrayExport &&
-      _location != null &&
-      (_trayInfo?.occupiedPositions.isNotEmpty ?? false);
+  bool get canExport {
+    if (busy || hasInvalidLocation || _duplicateSerials.isNotEmpty) {
+      return false;
+    }
+    if (_serialNumbers.isNotEmpty) return true;
+    return !_loadingTray &&
+        _stockType.supportsTrayExport &&
+        _location != null &&
+        (_trayInfo?.occupiedPositions.any(
+              (p) => SerialNumberParser.normalize(p.serialNumber).isNotEmpty,
+            ) ??
+            false);
+  }
+
+  InventoryExportSelection? prepareExport() {
+    if (busy) return null;
+    _pendingExport = null;
+    if (!canExport) return null;
+    final fromInput = _serialNumbers.isNotEmpty;
+    final serials =
+        fromInput
+            ? List<String>.of(_serialNumbers)
+            : _trayInfo!.occupiedPositions
+                .map((p) => SerialNumberParser.normalize(p.serialNumber))
+                .where((sn) => sn.isNotEmpty)
+                .toSet()
+                .toList();
+    final currentLocation = _location;
+    return _pendingExport = InventoryExportSelection(
+      stockType: _stockType,
+      location: currentLocation,
+      fromInput: fromInput,
+      request:
+          currentLocation == null
+              ? ExportInventoryRequest.fromSerialNumbers(serialNumbers: serials)
+              : ExportInventoryRequest.fromLocation(
+                location: currentLocation,
+                serialNumbers: serials,
+              ),
+    );
+  }
+
+  void cancelExport(InventoryExportSelection selection) {
+    if (identical(_pendingExport, selection)) _pendingExport = null;
+  }
 
   void selectStockType(StockType value) {
     if (busy || value == _stockType) {
@@ -201,6 +239,7 @@ class InventoryImportProvider with ChangeNotifier {
     _cancelScheduledTrayLoad();
     _serialLookupTimer?.cancel();
     _serialLookupTimer = null;
+    _pendingExport = null;
     _serialLookupQueue.clear();
     _queuedSerials.clear();
     _locationInput = '';
@@ -277,7 +316,8 @@ class InventoryImportProvider with ChangeNotifier {
       _invalidSerials = result.invalidSerials;
       _recalculateValidation();
       _syncSerialDetails();
-      _operationSummary = '${_stockType.displayName} inventory import: '
+      _operationSummary =
+          '${_stockType.displayName} inventory import: '
           '$successfulCount/${requestedSerials.length} SNs imported successfully.';
 
       if (successfulCount == 0 && !result.success) {
@@ -307,51 +347,49 @@ class InventoryImportProvider with ChangeNotifier {
   }
 
   Future<bool> exportTray() async {
-    if (!canExport) {
-      return false;
-    }
+    final selection = prepareExport();
+    return selection != null && await exportInventory(selection);
+  }
 
-    final currentLocation = _location!;
-    final serialNumbers = _trayInfo!.occupiedPositions
-        .map((position) => position.serialNumber.trim().toUpperCase())
-        .where((serial) => serial.isNotEmpty)
-        .toList(growable: false);
-    if (serialNumbers.isEmpty) {
-      return false;
-    }
-
+  Future<bool> exportInventory(InventoryExportSelection selection) async {
+    if (busy || !identical(_pendingExport, selection)) return false;
+    _pendingExport = null;
     _clearOperationMessages();
     _exporting = true;
     _cancelScheduledTrayLoad();
+    _loadingTray = false;
     _notify();
-
     try {
-      final request = ExportInventoryRequest.fromLocation(
-        location: currentLocation,
-        serialNumbers: serialNumbers,
+      final result = await _repository.exportInventory(
+        selection.stockType,
+        selection.request,
       );
-      final result = await _repository.exportInventory(_stockType, request);
       if (!result.success) {
         _error = result.message;
         return false;
       }
-
       _operationSummary = result.message;
-      try {
-        await _refreshTrayAfterOperation(currentLocation);
-      } on ServerException catch (error, stackTrace) {
-        debugPrint('Inventory tray refresh failed: $error\n$stackTrace');
-        _warning =
-            'Export completed, but tray information could not be refreshed.';
+      final selectedLocation = selection.location;
+      if (selectedLocation != null &&
+          selection.stockType.supportsTray &&
+          _stockType == selection.stockType &&
+          _location?.normalized == selectedLocation.normalized) {
+        try {
+          await _refreshTrayAfterOperation(selectedLocation);
+        } catch (error, stackTrace) {
+          debugPrint('Inventory tray refresh failed: $error\n$stackTrace');
+          _warning = 'inventory_export_refresh_warning';
+        }
       }
       return true;
     } on ServerException catch (error, stackTrace) {
       debugPrint('Inventory export failed: $error\n$stackTrace');
+      _invalidSerials = error.invalidSerials;
       _error = _formatServerError(error);
       return false;
     } catch (error, stackTrace) {
       debugPrint('Unexpected inventory export failure: $error\n$stackTrace');
-      _error = 'Inventory export could not be completed.';
+      _error = 'inventory_export_failed';
       return false;
     } finally {
       _exporting = false;
@@ -476,22 +514,21 @@ class InventoryImportProvider with ChangeNotifier {
 
   void _recalculateValidation() {
     _duplicateSerials = InventoryValidation.duplicateSerials(_serialNumbers);
-    _trayDuplicateSerials = _stockType.supportsTray
-        ? InventoryValidation.duplicateSerialsInTray(
-            _serialNumbers,
-            _trayInfo,
-          )
-        : const <String>{};
+    _trayDuplicateSerials =
+        _stockType.supportsTray
+            ? InventoryValidation.duplicateSerialsInTray(
+              _serialNumbers,
+              _trayInfo,
+            )
+            : const <String>{};
   }
 
   Set<String> get _serialLookupTargets => <String>{
-        ..._serialNumbers,
-        ...?_trayInfo?.occupiedPositions
-            .map((position) => SerialNumberParser.normalize(
-                  position.serialNumber,
-                ))
-            .where((serial) => serial.isNotEmpty),
-      };
+    ..._serialNumbers,
+    ...?_trayInfo?.occupiedPositions
+        .map((position) => SerialNumberParser.normalize(position.serialNumber))
+        .where((serial) => serial.isNotEmpty),
+  };
 
   void _syncSerialDetails() {
     final targets = _serialLookupTargets;
@@ -533,33 +570,35 @@ class InventoryImportProvider with ChangeNotifier {
       final lookup = _repository.getSerialInfo(serial);
       _pendingSerialLookups[serial] = lookup;
 
-      lookup.then<void>(
-        (info) {
-          if (_disposed) {
-            return;
-          }
-          _serialInfoCache[serial] = info;
-          _serialLookupErrors.remove(serial);
-          _syncSerialDetails();
-          _notify();
-        },
-        onError: (Object error, StackTrace stackTrace) {
-          if (_disposed) {
-            return;
-          }
-          debugPrint(
-            'Serial info lookup failed for $serial: $error\n$stackTrace',
-          );
-          _serialLookupErrors[serial] = _formatSerialLookupError(error);
-          _notify();
-        },
-      ).whenComplete(() {
-        _pendingSerialLookups.remove(serial);
-        if (!_disposed) {
-          _notify();
-          _pumpSerialLookups();
-        }
-      });
+      lookup
+          .then<void>(
+            (info) {
+              if (_disposed) {
+                return;
+              }
+              _serialInfoCache[serial] = info;
+              _serialLookupErrors.remove(serial);
+              _syncSerialDetails();
+              _notify();
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              if (_disposed) {
+                return;
+              }
+              debugPrint(
+                'Serial info lookup failed for $serial: $error\n$stackTrace',
+              );
+              _serialLookupErrors[serial] = _formatSerialLookupError(error);
+              _notify();
+            },
+          )
+          .whenComplete(() {
+            _pendingSerialLookups.remove(serial);
+            if (!_disposed) {
+              _notify();
+              _pumpSerialLookups();
+            }
+          });
     }
   }
 
@@ -604,6 +643,7 @@ class InventoryImportProvider with ChangeNotifier {
     _disposed = true;
     _locationTimer?.cancel();
     _serialLookupTimer?.cancel();
+    _pendingExport = null;
     _serialLookupQueue.clear();
     _queuedSerials.clear();
     super.dispose();

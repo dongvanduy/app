@@ -1,63 +1,74 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/constants/colors.dart';
 import '../../domain/entities/code_entity.dart';
 import '../providers/code_provider.dart';
+import 'business_widgets.dart';
+import 'dashboard_theme.dart';
+import 'dashboard_widgets.dart';
 
 class CodeItem extends StatelessWidget {
+  const CodeItem({super.key, required this.code, required this.isFound});
   final CodeEntity code;
   final bool isFound;
-
-  const CodeItem({
-    super.key,
-    required this.code,
-    required this.isFound,
-  });
-
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CodeProvider>(context, listen: false);
-    final isRecentlyScanned = provider.recentlyScannedCodes.contains(code.serialNumber);
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      color: isFound ? AppColors.foundCode : Colors.white,
+    final recent = context.watch<CodeProvider>().recentlyScannedCodes.contains(
+      code.serialNumber,
+    );
+    final colors = DashboardColors.of(context);
+    return DashboardCard(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.qr_code, size: 20, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  code.foundOrder != null
-                      ? '${code.foundOrder}. ${code.serialNumber}'
-                      : code.serialNumber,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isRecentlyScanned
-                        ? Colors.red // Màu đỏ cho SN vừa quét
-                        : (code.foundOrder != null
-                        ? Colors.yellow[700] // Vàng cho SN tìm thấy trước
-                        : (isFound ? AppColors.primary : Colors.black)),
+                Icon(
+                  isFound ? Icons.check_circle : Icons.qr_code,
+                  color: isFound ? colors.success : colors.accent,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    code.foundOrder == null
+                        ? code.serialNumber
+                        : '${code.foundOrder}. ${code.serialNumber}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: recent ? colors.danger : colors.text,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            Text('${bt(context, 'Model Name')}: ${code.modelName}'),
             Text(
-              'Model: ${code.modelName}',
-              style: const TextStyle(fontSize: 14),
+              'Location: ${code.shelfCode} - C${code.columnNumber} L${code.levelNumber} T${code.trayNumber} P${code.positionInTray}',
+              style: TextStyle(color: colors.muted),
             ),
-            Text(
-              'Vị trí: ${code.shelfCode} - C${code.columnNumber} L${code.levelNumber} T${code.trayNumber} P${code.positionInTray}',
-              style: const TextStyle(fontSize: 14),
-            ),
+            if (isFound || recent) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  if (isFound)
+                    Text(
+                      bt(context, 'Found'),
+                      style: TextStyle(color: colors.success),
+                    ),
+                  if (recent)
+                    Text(
+                      bt(context, 'Recently scanned'),
+                      style: TextStyle(color: colors.danger),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

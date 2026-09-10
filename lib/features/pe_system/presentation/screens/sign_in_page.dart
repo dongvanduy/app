@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_app/core/constants/colors.dart';
+import '../widgets/business_widgets.dart';
+import '../widgets/dashboard_theme.dart';
+import '../widgets/dashboard_widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../widgets/logo.dart';
 import '../widgets/form_content.dart';
 import 'navigation_rail_page.dart';
 
@@ -38,41 +39,56 @@ class SignInPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-        body: Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.background, AppColors.buttonBlue],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: MediaQuery.of(context).size.width < 600
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Logo(),
-                      FormContent(onLogin: _login),
-                    ],
-                  )
-                : Container(
-                    padding: const EdgeInsets.all(32.0),
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: Row(
-                      children: [
-                        const Expanded(child: Logo()),
-                        Expanded(
-                          child: FormContent(onLogin: _login),
-                        ),
-                      ],
+    watchBusinessLanguage(context);
+    return DashboardTheme(
+      child: Builder(
+        builder:
+            (context) => Scaffold(
+              body: SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/logo/logo.png',
+                            width: 100,
+                            height: 100,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'FindBoard',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            bt(context, 'signin_hint'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: DashboardColors.of(context).muted,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          DashboardCard(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: FormContent(onLogin: _login),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-          ),
-        ),
+                ),
+              ),
+            ),
       ),
-    ));
+    );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../pe_system/presentation/widgets/business_widgets.dart';
+import '../../../pe_system/presentation/widgets/dashboard_theme.dart';
 import '../../../auth/domain/entities/auth_user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../pe_system/presentation/screens/qr_scan_page.dart';
@@ -9,14 +11,21 @@ import '../../domain/entities/inventory_models.dart';
 import '../../domain/entities/stock_type.dart';
 import '../providers/inventory_import_provider.dart';
 
-class InventoryImportScreen extends StatefulWidget {
+class InventoryImportScreen extends StatelessWidget {
   const InventoryImportScreen({super.key});
-
   @override
-  State<InventoryImportScreen> createState() => _InventoryImportScreenState();
+  Widget build(BuildContext context) =>
+      const DashboardTheme(child: _InventoryImportBody());
 }
 
-class _InventoryImportScreenState extends State<InventoryImportScreen> {
+class _InventoryImportBody extends StatefulWidget {
+  const _InventoryImportBody();
+
+  @override
+  State<_InventoryImportBody> createState() => _InventoryImportScreenState();
+}
+
+class _InventoryImportScreenState extends State<_InventoryImportBody> {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _serialController = TextEditingController();
   final FocusNode _locationFocusNode = FocusNode();
@@ -178,7 +187,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
       if (provider.isTrayFull) {
         await _showTrayFullDialog(provider);
         if (mounted) {
-          _selectLocationAndFocus();
+          _focusField(_serialFocusNode);
         }
         return;
       }
@@ -203,11 +212,11 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
       barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Tray is full'),
+            title: Text(bt(context, 'Tray is full')),
             content: Text(
-              'Location ${provider.location!.normalized} is full '
+              '${provider.location!.normalized}: ${bt(context, 'Tray is full')} '
               '(${tray.actualOccupiedCount}/${tray.maxSlots}). '
-              'Please select another tray.',
+              '${bt(context, 'tray_full_export_hint')}',
             ),
             actions: <Widget>[
               TextButton(
@@ -243,7 +252,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
       barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
-            title: Text(title),
+            title: Text(bt(context, title)),
             content: SingleChildScrollView(
               child: Text(_buildImportResultMessage(provider)),
             ),
@@ -263,123 +272,141 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
 
   String _buildImportResultMessage(InventoryImportProvider provider) {
     final sections = <String>[
-      if (provider.error != null) provider.error!,
+      if (provider.error != null) bt(context, provider.error!),
       if (provider.operationSummary != null) provider.operationSummary!,
-      if (provider.warning != null) provider.warning!,
+      if (provider.warning != null) bt(context, provider.warning!),
       if (provider.invalidSerials.isNotEmpty)
-        'Invalid Serial Numbers:\n${provider.invalidSerials.join('\n')}',
+        '${bt(context, 'Invalid Serial Numbers')}:\n${provider.invalidSerials.join('\n')}',
       if (provider.failedImportResults.isNotEmpty)
-        'Failed:\n${provider.failedImportResults.map((item) {
+        '${bt(context, 'Failed')}:\n${provider.failedImportResults.map((item) {
           return '${item.serialNumber}: ${item.message}';
         }).join('\n')}',
     ];
     return sections.isEmpty
-        ? 'Inventory import could not be completed.'
+        ? bt(context, 'inventory_import_failed')
         : sections.join('\n\n');
   }
 
   Future<void> _exportTray(InventoryImportProvider provider) async {
-    final location = provider.location;
-    final tray = provider.trayInfo;
-    if (location == null || tray == null || !provider.canExport) {
-      return;
-    }
-
+    final selection = provider.prepareExport();
+    if (selection == null) return;
     FocusScope.of(context).unfocus();
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Confirm inventory export'),
-            content: Text(
-              'Export all ${tray.occupiedPositions.length} SN(s) from '
-              'location ${location.normalized}?',
+            title: Text(bt(dialogContext, 'Confirm inventory export')),
+            content: SizedBox(
+              width: 480,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      bt(
+                        dialogContext,
+                        selection.fromInput
+                            ? 'export_from_list'
+                            : 'export_whole_tray',
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${bt(dialogContext, 'Stock type')}: ${selection.stockType.displayName}',
+                    ),
+                    Text(
+                      '${bt(dialogContext, 'Quantity')}: ${selection.serialNumbers.length}',
+                    ),
+                    Text(
+                      'Location: ${selection.location?.normalized ?? bt(dialogContext, 'No location')}',
+                    ),
+                    const Divider(height: 24),
+                    SelectableText(
+                      selection.serialNumbers.join('\n'),
+                      key: const ValueKey('inventory_export_serials'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            actions: <Widget>[
+            actions: [
               TextButton(
-                key: const ValueKey<String>('inventory_export_cancel_button'),
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('CANCEL'),
+                key: const ValueKey('inventory_export_cancel_button'),
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(bt(dialogContext, 'cancel')),
               ),
               FilledButton(
-                key: const ValueKey<String>('inventory_export_confirm_button'),
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('EXPORT'),
+                key: const ValueKey('inventory_export_confirm_button'),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(bt(dialogContext, 'EXPORT')),
               ),
             ],
           ),
     );
-    if (!mounted) {
+    if (!mounted || confirmed != true) {
+      provider.cancelExport(selection);
+      if (mounted) {
+        _focusField(
+          selection.fromInput ? _serialFocusNode : _locationFocusNode,
+        );
+      }
       return;
     }
-    if (confirmed != true) {
-      _focusField(_locationFocusNode);
-      return;
-    }
-
-    final succeeded = await provider.exportTray();
-    if (!mounted) {
-      return;
-    }
-
+    final succeeded = await provider.exportInventory(selection);
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder:
           (dialogContext) => AlertDialog(
-            title: Text(succeeded ? 'Export successful' : 'Export failed'),
-            content: Text(_buildExportResultMessage(provider)),
-            actions: <Widget>[
+            title: Text(
+              bt(
+                dialogContext,
+                succeeded ? 'Export successful' : 'Export failed',
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Text(_buildExportResultMessage(provider)),
+            ),
+            actions: [
               TextButton(
-                key: const ValueKey<String>(
-                  'inventory_export_result_ok_button',
-                ),
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('OK'),
+                key: const ValueKey('inventory_export_result_ok_button'),
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(bt(dialogContext, 'close')),
               ),
             ],
           ),
     );
-    if (!mounted) {
-      return;
-    }
-
-    if (succeeded) {
-      _clearForm(provider);
-    } else {
-      _selectLocationAndFocus();
-    }
+    if (!mounted) return;
+    if (succeeded) provider.clearForm();
+    _focusField(selection.fromInput ? _serialFocusNode : _locationFocusNode);
   }
 
   String _buildExportResultMessage(InventoryImportProvider provider) {
     final sections = <String>[
-      if (provider.error != null) provider.error!,
+      if (provider.error != null) bt(context, provider.error!),
       if (provider.operationSummary != null) provider.operationSummary!,
-      if (provider.warning != null) provider.warning!,
+      if (provider.warning != null) bt(context, provider.warning!),
     ];
     return sections.isEmpty
-        ? 'Inventory export could not be completed.'
+        ? bt(context, 'inventory_export_failed')
         : sections.join('\n\n');
   }
 
   @override
   Widget build(BuildContext context) {
+    watchBusinessLanguage(context);
     final authenticatedUser = context.watch<AuthProvider>().user;
-    return Scaffold(
-      appBar: AppBar(title: const Text('INVENTORY IMPORT')),
+    return BusinessPage(
+      title: bt(context, 'Inventory'),
       body: SafeArea(
         child: Consumer<InventoryImportProvider>(
           builder: (context, provider, _) {
             return AbsorbPointer(
               absorbing: provider.busy,
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  16 + MediaQuery.viewInsetsOf(context).bottom,
-                ),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 900),
@@ -464,7 +491,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
               key: const ValueKey<String>('inventory_refresh_button'),
               onPressed: provider.busy ? null : () => _clearForm(provider),
               icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
+              label: Text(bt(context, 'Refresh')),
             ),
             OutlinedButton.icon(
               key: const ValueKey<String>('software_keyboard_toggle'),
@@ -475,7 +502,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
                     : Icons.keyboard_alt_outlined,
               ),
               label: Text(
-                'Keyboard: ${_softwareKeyboardEnabled ? 'ON' : 'OFF'}',
+                '${bt(context, 'Keyboard')}: ${bt(context, _softwareKeyboardEnabled ? 'ON' : 'OFF')}',
               ),
             ),
           ],
@@ -487,10 +514,13 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
   Widget _buildInventoryActions(InventoryImportProvider provider) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 430;
+        final compact =
+            constraints.maxWidth < 430 ||
+            MediaQuery.textScalerOf(context).scale(16) >= 24;
         final importButton = ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 52),
           child: ElevatedButton.icon(
+            key: const ValueKey('inventory_import_button'),
             onPressed: provider.canSubmit ? () => _submit(provider) : null,
             icon:
                 provider.submitting
@@ -500,20 +530,16 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
                     )
                     : const Icon(Icons.inventory_2_outlined),
             label: Text(
-              provider.submitting ? 'IMPORTING...' : 'IMPORT',
+              bt(context, provider.submitting ? 'IMPORTING...' : 'IMPORT'),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         );
         final exportButton = ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 52),
-          child: ElevatedButton.icon(
+          child: OutlinedButton.icon(
             key: const ValueKey<String>('inventory_export_button'),
             onPressed: provider.canExport ? () => _exportTray(provider) : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange.shade800,
-              foregroundColor: Colors.white,
-            ),
             icon:
                 provider.exporting
                     ? const SizedBox.square(
@@ -522,7 +548,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
                     )
                     : const Icon(Icons.outbox_outlined),
             label: Text(
-              provider.exporting ? 'EXPORTING...' : 'EXPORT',
+              bt(context, provider.exporting ? 'EXPORTING...' : 'EXPORT'),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
@@ -588,6 +614,9 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
             _UpperCaseTextFormatter(),
           ],
           decoration: InputDecoration(
+            helperText: bt(context, 'location_optional_export'),
+            helperMaxLines: 5,
+            errorMaxLines: 5,
             hintText:
                 provider.stockType == StockType.scrap
                     ? 'A1-2-K3 or CARTON-1'
@@ -598,7 +627,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
                     ? 'Location format is invalid.'
                     : null,
             suffixIcon: IconButton(
-              tooltip: 'Scan location',
+              tooltip: bt(context, 'Scan location'),
               onPressed: provider.busy ? null : _scanLocation,
               icon: const Icon(Icons.qr_code_scanner),
             ),
@@ -610,11 +639,13 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
         if (location != null) ...<Widget>[
           const SizedBox(height: 12),
           Text(
-            'Normalized: ${location.normalized}',
+            '${bt(context, 'Normalized')}: ${location.normalized}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 12,
             children: <Widget>[
               _LocationValue(label: 'Shelf', value: location.shelf),
               _LocationValue(label: 'Column', value: '${location.column}'),
@@ -629,10 +660,10 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
 
   Widget _buildTraySection(InventoryImportProvider provider) {
     if (!provider.stockType.supportsTray) {
-      return const ListTile(
+      return ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.info_outline),
-        title: Text('OK inventory does not use a Tray API.'),
+        leading: const Icon(Icons.info_outline),
+        title: Text(bt(context, 'OK inventory does not use a Tray API.')),
       );
     }
     if (provider.loadingTray) {
@@ -646,12 +677,17 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
     if (tray == null) {
       return Row(
         children: <Widget>[
-          const Expanded(
-            child: Text('Enter a complete location to load tray information.'),
+          Expanded(
+            child: Text(
+              bt(
+                context,
+                'Enter a complete location to load tray information.',
+              ),
+            ),
           ),
           if (provider.location != null)
             IconButton(
-              tooltip: 'Refresh tray',
+              tooltip: bt(context, 'Refresh tray'),
               onPressed: provider.refreshTray,
               icon: const Icon(Icons.refresh),
             ),
@@ -671,7 +707,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
               ),
             ),
             IconButton(
-              tooltip: 'Refresh tray',
+              tooltip: bt(context, 'Refresh tray'),
               onPressed: provider.refreshTray,
               icon: const Icon(Icons.refresh),
             ),
@@ -681,7 +717,9 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
           ExpansionTile(
             initiallyExpanded: true,
             tilePadding: EdgeInsets.zero,
-            title: Text('Existing SNs (${tray.occupiedPositions.length})'),
+            title: Text(
+              '${bt(context, 'Existing SNs')} (${tray.occupiedPositions.length})',
+            ),
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -702,7 +740,9 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 600;
+        final isCompact =
+            constraints.maxWidth < 600 ||
+            MediaQuery.textScalerOf(context).scale(16) >= 24;
 
         final serialInput = TextField(
           key: const ValueKey<String>('inventory_serial_input'),
@@ -717,8 +757,8 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
           ],
           keyboardType: TextInputType.multiline,
           decoration: InputDecoration(
-            labelText: 'Serial Number',
-            hintText: 'One SN per line',
+            labelText: bt(context, 'Serial Number'),
+            hintText: bt(context, 'One SN per line'),
             alignLabelWithHint: true,
             contentPadding: const EdgeInsets.fromLTRB(14, 16, 8, 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -729,7 +769,7 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
               ),
             ),
             suffixIcon: IconButton(
-              tooltip: 'Scan Serial Number',
+              tooltip: bt(context, 'Scan Serial Number'),
               onPressed: provider.busy ? null : _scanSerial,
               icon: const Icon(Icons.qr_code_scanner),
             ),
@@ -799,19 +839,19 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
             if (provider.duplicateSerials.isNotEmpty)
               _ValidationMessage(
                 text:
-                    'Duplicate input: ${provider.duplicateSerials.join(', ')}',
+                    '${bt(context, 'Duplicate input')}: ${provider.duplicateSerials.join(', ')}',
               ),
 
             if (provider.trayDuplicateSerials.isNotEmpty)
               _ValidationMessage(
                 text:
-                    'Already stored in this tray: '
+                    '${bt(context, 'Already stored in this tray')}: '
                     '${provider.trayDuplicateSerials.join(', ')}',
               ),
 
             if (provider.isOverCapacity)
-              const _ValidationMessage(
-                text: 'Tray is full or exceeds capacity.',
+              _ValidationMessage(
+                text: bt(context, 'Tray is full or exceeds capacity.'),
               ),
           ],
         );
@@ -833,13 +873,13 @@ class _InventoryImportScreenState extends State<InventoryImportScreen> {
           _MessageCard(
             icon: Icons.error_outline,
             color: Colors.red,
-            message: provider.error!,
+            message: bt(context, provider.error!),
           ),
         if (provider.warning != null)
           _MessageCard(
             icon: Icons.warning_amber_rounded,
             color: Colors.orange,
-            message: provider.warning!,
+            message: bt(context, provider.warning!),
           ),
         if (provider.invalidSerials.isNotEmpty)
           _MessageCard(
@@ -878,30 +918,10 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
 class _SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
-
   const _SectionCard({required this.title, required this.child});
-
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      BusinessSection(title: bt(context, title), child: child);
 }
 
 class _LocationValue extends StatelessWidget {
@@ -912,10 +932,15 @@ class _LocationValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    return Padding(
+      padding: EdgeInsets.zero,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            bt(context, label),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
@@ -944,12 +969,12 @@ class _SerialSummaryItem extends StatelessWidget {
             ? Theme.of(context).colorScheme.error
             : Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
         Icon(icon, size: 20, color: color),
         const SizedBox(width: 8),
-        Text('$label: '),
+        Text('${bt(context, label)}: '),
         Text(
           value,
           style: TextStyle(color: color, fontWeight: FontWeight.bold),
@@ -1001,7 +1026,7 @@ class _TraySerialInfoTable extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1124,7 +1149,7 @@ class _SerialInfoTable extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1146,13 +1171,13 @@ class _SerialInfoTable extends StatelessWidget {
             ),
           ),
           if (serialNumbers.isEmpty)
-            const SizedBox(
-              height: 132,
+            SizedBox(
+              height: null,
               child: Center(
                 child: Padding(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   child: Text(
-                    'Enter an SN to load information.',
+                    bt(context, 'Enter an SN to load information.'),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1217,7 +1242,7 @@ class _SerialInfoHeaderCell extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         child: Text(
-          label,
+          bt(context, label),
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -1247,9 +1272,9 @@ class _SerialInfoValueCell extends StatelessWidget {
         error != null
             ? error!
             : loading
-            ? 'Loading...'
+            ? bt(context, 'loading')
             : notFound
-            ? 'Not found'
+            ? bt(context, 'Not found')
             : value ?? '—';
     return Expanded(
       child: ConstrainedBox(
@@ -1292,7 +1317,13 @@ class _MessageCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Icon(icon, color: color.shade700),
+            Icon(
+              icon,
+              color:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? color.shade200
+                      : color.shade700,
+            ),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],

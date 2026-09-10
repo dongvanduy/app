@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:mobile_app/features/pe_system/presentation/screens/home_page.dart';
-import 'package:mobile_app/features/pe_system/presentation/screens/settings_page.dart';
-import 'package:mobile_app/features/pe_system/presentation/screens/sign_in_page.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+
 import '../../../../core/localization/app_localizations.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/code_provider.dart';
+import '../widgets/dashboard_theme.dart';
+import '../../../repair_lookup/presentation/screens/repair_lookup_screen.dart';
+import 'home_page.dart';
+import 'settings_page.dart';
+import 'sign_in_page.dart';
 
 class NavigationRailPage extends StatefulWidget {
   const NavigationRailPage({super.key});
@@ -16,117 +20,200 @@ class NavigationRailPage extends StatefulWidget {
 
 class _NavigationRailPageState extends State<NavigationRailPage> {
   @override
-  void initState() {
-    super.initState();
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    //   print('NavigationRailPage: Setting SystemUIOverlayStyle, isDarkMode: $isDarkMode');
-    //   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-    //     statusBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
-    //     statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-    //     systemNavigationBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
-    //     systemNavigationBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-    //   ));
-    // });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<CodeProvider>(context);
-    final width = MediaQuery.of(context).size.width;
-    final bool isSmallScreen = width < 900;
-    final bool isLargeScreen = width > 900;
+    final selectedIndex = context.select<CodeProvider, int>(
+      (p) => p.selectedIndex,
+    );
+    final colors = DashboardColors.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 900;
+    final labels = [
+      AppLocalizations.of(context, 'home'),
+      AppLocalizations.of(context, 'detail'),
+      AppLocalizations.of(context, 'settings'),
+    ];
+    const icons = [
+      Icons.home_outlined,
+      Icons.bookmark_border_rounded,
+      Icons.settings_outlined,
+    ];
+    const activeIcons = [
+      Icons.home_rounded,
+      Icons.bookmark_rounded,
+      Icons.settings_rounded,
+    ];
+    void select(int index) =>
+        context.read<CodeProvider>().setSelectedIndex(index);
 
-    return Scaffold(
-      bottomNavigationBar: isSmallScreen
-          ? BottomNavigationBar(
-              items: [
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.home_outlined),
-                  activeIcon: const Icon(Icons.home_rounded),
-                  label: AppLocalizations.of(context, 'home'),
+    return PopScope(
+      canPop: selectedIndex != 1,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && selectedIndex == 1) select(0);
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              colors.dark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: colors.dark ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: colors.surface,
+          systemNavigationBarIconBrightness:
+              colors.dark ? Brightness.light : Brightness.dark,
+          systemNavigationBarContrastEnforced: false,
+        ),
+        child: Scaffold(
+          backgroundColor: colors.background,
+          bottomNavigationBar:
+              compact
+                  ? DashboardTheme(
+                    child: Material(
+                      color: colors.surface,
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (var i = 0; i < labels.length; i++)
+                                Expanded(
+                                  child: Semantics(
+                                    selected: selectedIndex == i,
+                                    button: true,
+                                    child: InkWell(
+                                      key: ValueKey('navigation-tab-$i'),
+                                      onTap: () => select(i),
+                                      borderRadius: BorderRadius.circular(28),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 4,
+                                          horizontal: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              selectedIndex == i
+                                                  ? colors.tint
+                                                  : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            28,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              selectedIndex == i
+                                                  ? activeIcons[i]
+                                                  : icons[i],
+                                              color:
+                                                  selectedIndex == i
+                                                      ? colors.accent
+                                                      : colors.muted,
+                                              size: 26,
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              labels[i],
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                height: 1.2,
+                                                color:
+                                                    selectedIndex == i
+                                                        ? colors.accent
+                                                        : colors.muted,
+                                                fontWeight:
+                                                    selectedIndex == i
+                                                        ? FontWeight.w600
+                                                        : FontWeight.w400,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  : null,
+          body: Row(
+            children: [
+              if (!compact)
+                DashboardTheme(
+                  child: SafeArea(
+                    right: false,
+                    child: NavigationRail(
+                      key: const ValueKey('dashboard-rail'),
+                      backgroundColor: colors.surface,
+                      selectedIndex: selectedIndex,
+                      onDestinationSelected: select,
+                      extended:
+                          width >= 1100 &&
+                          MediaQuery.textScalerOf(context).scale(14) < 21,
+                      labelType:
+                          width >= 1100 &&
+                                  MediaQuery.textScalerOf(context).scale(14) <
+                                      21
+                              ? NavigationRailLabelType.none
+                              : NavigationRailLabelType.all,
+                      useIndicator: true,
+                      indicatorColor: colors.tint,
+                      selectedIconTheme: IconThemeData(color: colors.accent),
+                      unselectedIconTheme: IconThemeData(color: colors.muted),
+                      selectedLabelTextStyle: TextStyle(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      unselectedLabelTextStyle: TextStyle(color: colors.muted),
+                      destinations: [
+                        for (var i = 0; i < labels.length; i++)
+                          NavigationRailDestination(
+                            icon: Icon(icons[i]),
+                            selectedIcon: Icon(activeIcons[i]),
+                            label: Text(labels[i]),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.bookmark_border_outlined),
-                  activeIcon: const Icon(Icons.bookmark_rounded),
-                  label: AppLocalizations.of(context, 'detail'),
+              Expanded(
+                child: IndexedStack(
+                  index: selectedIndex,
+                  children: [
+                    const HomePage(),
+                    RepairLookupScreen(onBack: () => select(0)),
+                    SettingsPage(onLogout: () => _logout(context)),
+                  ],
                 ),
-                BottomNavigationBarItem(
-                  icon: const Icon(Icons.settings_outlined),
-                  activeIcon: const Icon(Icons.settings_rounded),
-                  label: AppLocalizations.of(context, 'settings'),
-                ),
-              ],
-              currentIndex: provider.selectedIndex,
-              onTap: (int index) {
-                provider.setSelectedIndex(index);
-              },
-            )
-          : null,
-      body: Row(
-        children: <Widget>[
-          if (!isSmallScreen)
-            NavigationRail(
-              selectedIndex: provider.selectedIndex,
-              onDestinationSelected: (int index) {
-                provider.setSelectedIndex(index);
-              },
-              extended: isLargeScreen,
-              destinations: [
-                NavigationRailDestination(
-                  icon: const Icon(Icons.home_outlined),
-                  selectedIcon: const Icon(Icons.home_rounded),
-                  label: Text(AppLocalizations.of(context, 'home')),
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(Icons.bookmark_border_outlined),
-                  selectedIcon: const Icon(Icons.bookmark_rounded),
-                  label: Text(AppLocalizations.of(context, 'detail')),
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(Icons.settings_outlined),
-                  selectedIcon: const Icon(Icons.settings_rounded),
-                  label: Text(AppLocalizations.of(context, 'settings')),
-                ),
-              ],
-            ),
-          //const VerticalDivider(),
-          Expanded(
-            child: IndexedStack(
-              index: provider.selectedIndex,
-              children: [
-                const HomePage(),
-                const Center(child: Text('Bookmarks Page')),
-                SettingsPage(onLogout: () => _logout(context)),
-              ],
-            ),
-
-            // Expanded( Khong giu lai status khi chuyển page
-            //   child: provider.selectedIndex == 0
-            //       ? const HomeScreen()
-            //       : provider.selectedIndex == 1
-            //       ? const Center(child: Text('Bookmarks Page'))
-            //       : const Center(child: Text('Profile Page')),
-            // )
-            //
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Future<void> _logout(BuildContext context) async {
-    final authProvider = context.read<AuthProvider>();
-    final codeProvider = Provider.of<CodeProvider>(context, listen: false);
-    final authLogout = authProvider.logout();
-    codeProvider.resetSessionState();
-
-    // Xóa toàn bộ navigation stack và đưa về login
+    final authLogout = context.read<AuthProvider>().logout();
+    context.read<CodeProvider>().resetSessionState();
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const SignInPage()),
-      (Route<dynamic> route) => false,
+      MaterialPageRoute(builder: (_) => const SignInPage()),
+      (route) => false,
     );
-
     await authLogout;
   }
 }

@@ -7,6 +7,7 @@ import 'package:mobile_app/core/error/exceptions.dart';
 import 'package:mobile_app/features/bga_replace/data/datasources/bga_replace_api_service.dart';
 import 'package:mobile_app/features/bga_replace/data/models/bga_status_model.dart';
 import 'package:mobile_app/features/pe_system/presentation/screens/qr_scan_page.dart';
+import 'package:mobile_app/features/pe_system/presentation/widgets/dashboard_theme.dart';
 
 class BgaReplaceScreen extends StatefulWidget {
   const BgaReplaceScreen({super.key});
@@ -39,7 +40,10 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchStatuses({List<String>? sns, bool triggeredByInput = false}) async {
+  Future<void> _fetchStatuses({
+    List<String>? sns,
+    bool triggeredByInput = false,
+  }) async {
     final serialNumbers = sns ?? _extractSerialNumbers();
 
     if (_isLoading) {
@@ -81,14 +85,16 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
 
       int? newLockedStatus = _lockedStatus;
       final firstSn = serialNumbers.isNotEmpty ? serialNumbers.first : null;
-      final firstItem = firstSn != null ? _findStatusBySn(ordered, firstSn) : null;
+      final firstItem =
+          firstSn != null ? _findStatusBySn(ordered, firstSn) : null;
 
       if (firstItem == null || firstItem.applyTaskStatus == null) {
         if (triggeredByInput) {
           _showMessage('Không đúng trạng thái update');
         }
         newLockedStatus = null;
-      } else if (firstItem.applyTaskStatus == 10 || firstItem.applyTaskStatus == 11) {
+      } else if (firstItem.applyTaskStatus == 10 ||
+          firstItem.applyTaskStatus == 11) {
         newLockedStatus = firstItem.applyTaskStatus;
       } else {
         if (triggeredByInput) {
@@ -98,18 +104,25 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
       }
 
       if (newLockedStatus != null) {
-        final mismatched = ordered
-            .where((item) => item.applyTaskStatus != null && item.applyTaskStatus != newLockedStatus)
-            .toList();
+        final mismatched =
+            ordered
+                .where(
+                  (item) =>
+                      item.applyTaskStatus != null &&
+                      item.applyTaskStatus != newLockedStatus,
+                )
+                .toList();
         if (mismatched.isNotEmpty) {
           _showMessage('Không cùng trạng thái cập nhật.');
 
-          final fallbackSerials = _serialsBeforeAutoFetch.isNotEmpty
-              ? _serialsBeforeAutoFetch
-              : _lastSuccessfulSerials;
-          final fallbackResults = _resultsBeforeAutoFetch.isNotEmpty
-              ? _resultsBeforeAutoFetch
-              : _results;
+          final fallbackSerials =
+              _serialsBeforeAutoFetch.isNotEmpty
+                  ? _serialsBeforeAutoFetch
+                  : _lastSuccessfulSerials;
+          final fallbackResults =
+              _resultsBeforeAutoFetch.isNotEmpty
+                  ? _resultsBeforeAutoFetch
+                  : _results;
           final fallbackLocked = _lockedStatusBeforeAutoFetch ?? _lockedStatus;
 
           if (mounted) {
@@ -146,14 +159,15 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
 
   List<String> _extractSerialNumbers([String? rawText]) {
     final raw = rawText ?? _inputController.text;
-    final cleaned = raw
-        .split(RegExp(r'[\n,\s]+'))
-        .map((sn) => sn.trim())
-        .where((sn) => sn.isNotEmpty)
-        .map((sn) => sn.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), ''))
-        .where((sn) => sn.isNotEmpty)
-        .toSet()
-        .toList();
+    final cleaned =
+        raw
+            .split(RegExp(r'[\n,\s]+'))
+            .map((sn) => sn.trim())
+            .where((sn) => sn.isNotEmpty)
+            .map((sn) => sn.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), ''))
+            .where((sn) => sn.isNotEmpty)
+            .toSet()
+            .toList();
     return cleaned;
   }
 
@@ -247,7 +261,9 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
     _updating.clear();
 
     for (final item in _results.where((item) => item.canUpdate)) {
-      _remarkControllers[item.sn] = TextEditingController(text: item.remark ?? '');
+      _remarkControllers[item.sn] = TextEditingController(
+        text: item.remark ?? '',
+      );
       _updating[item.sn] = false;
     }
   }
@@ -294,7 +310,10 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
         _resetRemarkControllers();
       });
       _syncStateCaches();
-      _showMessage('Cập nhật trạng thái thành công cho ${item.sn}.', isError: false);
+      _showMessage(
+        'Cập nhật trạng thái thành công cho ${item.sn}.',
+        isError: false,
+      );
     } on ServerException catch (e) {
       _showMessage(e.message);
     } catch (e) {
@@ -317,13 +336,14 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => QRScanPage(
-          onCodeScanned: (code) {
-            if (!completer.isCompleted) {
-              completer.complete(code);
-            }
-          },
-        ),
+        builder:
+            (context) => QRScanPage(
+              onCodeScanned: (code) {
+                if (!completer.isCompleted) {
+                  completer.complete(code);
+                }
+              },
+            ),
       ),
     );
 
@@ -358,33 +378,27 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('BGA Replace'),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _buildInputCard(),
-              const SizedBox(height: 16),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: CircularProgressIndicator(),
-                ),
-              if (!_isLoading && _results.isEmpty)
-                const Expanded(
-                  child: Center(
-                    child: Text('Chưa có dữ liệu!'),
+    return DashboardTheme(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('BGA Replace')),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildInputCard(),
+                const SizedBox(height: 16),
+                if (_isLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: CircularProgressIndicator(),
                   ),
-                )
-              else if (_results.isNotEmpty)
-                Expanded(
-                  child: _buildResultList(),
-                ),
-            ],
+                if (!_isLoading && _results.isEmpty)
+                  const Expanded(child: Center(child: Text('Chưa có dữ liệu!')))
+                else if (_results.isNotEmpty)
+                  Expanded(child: _buildResultList()),
+              ],
+            ),
           ),
         ),
       ),
@@ -404,19 +418,19 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
               controller: _inputController,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                hintText:
-                    'Nhập SerialNumber',
+                hintText: 'Nhập SerialNumber',
                 alignLabelWithHint: true,
-                suffixIcon: _isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
+                suffixIcon:
+                    _isLoading
+                        ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                        : null,
               ),
               maxLines: 3,
               minLines: 2,
@@ -463,13 +477,20 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
                       children: [
                         Text(
                           'Status: ${item.applyTaskStatus ?? '--'}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           item.statusLabel,
-                          style: TextStyle(fontSize: 10,
-                            color: item.canUpdate ? Colors.blueAccent : Colors.grey,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color:
+                                item.canUpdate
+                                    ? DashboardColors.of(context).accent
+                                    : DashboardColors.of(context).muted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -502,37 +523,43 @@ class _BgaReplaceScreenState extends State<BgaReplaceScreen> {
                         const SizedBox(height: 12),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: item.applyTaskStatus == 10
-                              ? ElevatedButton.icon(
-                                  onPressed:
-                                      isUpdating ? null : () => _handleUpdate(item),
-                                  icon: isUpdating
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.login),
-                                  label: const Text('CheckInBarking'),
-                                )
-                              : item.applyTaskStatus == 11
+                          child:
+                              item.applyTaskStatus == 10
                                   ? ElevatedButton.icon(
-                                      onPressed: isUpdating
-                                          ? null
-                                          : () => _handleUpdate(item),
-                                      icon: isUpdating
-                                          ? const SizedBox(
+                                    onPressed:
+                                        isUpdating
+                                            ? null
+                                            : () => _handleUpdate(item),
+                                    icon:
+                                        isUpdating
+                                            ? const SizedBox(
                                               width: 16,
                                               height: 16,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
                                               ),
                                             )
-                                          : const Icon(Icons.logout),
-                                      label: const Text('CheckOutBarking'),
-                                    )
+                                            : const Icon(Icons.login),
+                                    label: const Text('CheckInBarking'),
+                                  )
+                                  : item.applyTaskStatus == 11
+                                  ? ElevatedButton.icon(
+                                    onPressed:
+                                        isUpdating
+                                            ? null
+                                            : () => _handleUpdate(item),
+                                    icon:
+                                        isUpdating
+                                            ? const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                            : const Icon(Icons.logout),
+                                    label: const Text('CheckOutBarking'),
+                                  )
                                   : const SizedBox.shrink(),
                         ),
                       ],

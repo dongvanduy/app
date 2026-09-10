@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'business_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -65,119 +66,103 @@ class _FormContentState extends State<FormContent> {
 
   @override
   Widget build(BuildContext context) {
+    watchBusinessLanguage(context);
     final provider = context.watch<AuthProvider>();
-
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 300),
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _usernameController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Vui lòng nhập mã thẻ hoặc username';
-                }
-                return null;
-              },
-              onChanged: (_) => provider.clearLoginError(),
-              decoration: const InputDecoration(
-                labelText: 'Mã thẻ / Username',
-                hintText: 'Nhập mã thẻ của bạn',
-                prefixIcon: Icon(Icons.badge_outlined),
-                border: OutlineInputBorder(),
-              ),
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            key: const ValueKey('login_username'),
+            controller: _usernameController,
+            enabled: !provider.isLoggingIn,
+            autofillHints: const [AutofillHints.username],
+            textInputAction: TextInputAction.next,
+            validator:
+                (value) =>
+                    value == null || value.trim().isEmpty
+                        ? bt(context, 'username_required')
+                        : null,
+            onChanged: (_) => provider.clearLoginError(),
+            decoration: InputDecoration(
+              labelText: bt(context, 'login_username_label'),
+              prefixIcon: const Icon(Icons.badge_outlined),
+              errorMaxLines: 3,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _passwordController,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập mật khẩu';
-                }
-                return null;
-              },
-              onChanged: (_) => provider.clearLoginError(),
-              obscureText: !_isPasswordVisible,
-              decoration: InputDecoration(
-                labelText: 'Mật khẩu',
-                hintText: 'Nhập mật khẩu của bạn',
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(_isPasswordVisible
-                      ? Icons.visibility_off
-                      : Icons.visibility),
-                  onPressed: () {
-                    setState(() {
-                      _isPasswordVisible = !_isPasswordVisible;
-                    });
-                  },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            key: const ValueKey('login_password'),
+            controller: _passwordController,
+            enabled: !provider.isLoggingIn,
+            autofillHints: const [AutofillHints.password],
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submit(),
+            validator:
+                (value) =>
+                    value == null || value.isEmpty
+                        ? bt(context, 'password_required')
+                        : null,
+            onChanged: (_) => provider.clearLoginError(),
+            obscureText: !_isPasswordVisible,
+            decoration: InputDecoration(
+              labelText: bt(context, 'Password'),
+              errorMaxLines: 3,
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                tooltip: bt(
+                  context,
+                  _isPasswordVisible ? 'Hide password' : 'Show password',
                 ),
+                icon: Icon(
+                  _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed:
+                    () => setState(
+                      () => _isPasswordVisible = !_isPasswordVisible,
+                    ),
               ),
             ),
-            const SizedBox(height: 16),
-            CheckboxListTile(
-              value: _rememberMe,
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _rememberMe = value;
-                });
-              },
-              title: const Text('Ghi nhớ'),
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              contentPadding: const EdgeInsets.all(0),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: provider.isLoggingIn
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      onPressed: () async {
-                        if (_formKey.currentState?.validate() ?? false) {
-                          await _saveRememberMe();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          await widget.onLogin(
-                            context,
-                            _usernameController.text.trim(),
-                            _passwordController.text,
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'Vui lòng kiểm tra username và mật khẩu')),
-                          );
-                        }
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(10.0),
-                        child: Text(
-                          'Đăng nhập',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            value: _rememberMe,
+            onChanged:
+                provider.isLoggingIn
+                    ? null
+                    : (value) => setState(() => _rememberMe = value ?? false),
+            title: Text(bt(context, 'Remember account')),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            key: const ValueKey('login_submit'),
+            onPressed: provider.isLoggingIn ? null : _submit,
+            child:
+                provider.isLoggingIn
+                    ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : Text(bt(context, 'Sign in')),
+          ),
+        ],
       ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (context.read<AuthProvider>().isLoggingIn) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    FocusScope.of(context).unfocus();
+    await _saveRememberMe();
+    if (!mounted) return;
+    await widget.onLogin(
+      context,
+      _usernameController.text.trim(),
+      _passwordController.text,
     );
   }
 }

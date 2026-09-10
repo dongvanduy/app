@@ -57,6 +57,9 @@ import 'features/pe_system/data/repositories/code_repository_impl.dart';
 import 'features/pe_system/domain/usecases/manage_codes_usecase.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'core/constants/colors.dart';
+import 'features/repair_lookup/data/datasources/repair_lookup_remote_data_source.dart';
+import 'features/repair_lookup/data/repositories/repair_lookup_repository_impl.dart';
+import 'features/repair_lookup/domain/repositories/repair_lookup_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +90,9 @@ void main() async {
   final inventoryImportProvider = InventoryImportProvider(
     repository: inventoryRepository,
   );
+  final repairLookupRepository = RepairLookupRepositoryImpl(
+    remoteDataSource: RepairLookupRemoteDataSource(apiClient: apiClient),
+  );
   final remoteDataSource = RemoteDataSource(apiClient: apiClient);
   final repository = CodeRepositoryImpl(remoteDataSource: remoteDataSource);
   final useCase = ManageCodesUseCase(repository: repository);
@@ -112,6 +118,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<RepairLookupRepository>.value(value: repairLookupRepository),
         ChangeNotifierProvider(create: (_) => authProvider),
         ChangeNotifierProvider(create: (_) => codeProvider),
         ChangeNotifierProvider(create: (_) => themeProvider),
@@ -180,9 +187,7 @@ class _MyAppState extends State<MyApp> {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       dropdownMenuTheme: const DropdownMenuThemeData(
@@ -232,9 +237,7 @@ class _MyAppState extends State<MyApp> {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       dropdownMenuTheme: const DropdownMenuThemeData(
@@ -264,11 +267,7 @@ class _MyAppState extends State<MyApp> {
         darkTheme: darkTheme,
         themeMode: themeProvider.themeMode,
         locale: Provider.of<LanguageProvider>(context).locale,
-        supportedLocales: const [
-          Locale('vi'),
-          Locale('en'),
-          Locale('zh'),
-        ],
+        supportedLocales: const [Locale('vi'), Locale('en'), Locale('zh')],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -294,13 +293,16 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _updateSystemUIOverlayStyle(bool isDarkMode) {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
-      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
-      systemNavigationBarColor:
-          isDarkMode ? Colors.grey[900] : AppColors.background,
-      systemNavigationBarIconBrightness:
-          isDarkMode ? Brightness.light : Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: isDarkMode ? Colors.grey[900] : AppColors.background,
+        statusBarIconBrightness:
+            isDarkMode ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor:
+            isDarkMode ? Colors.grey[900] : AppColors.background,
+        systemNavigationBarIconBrightness:
+            isDarkMode ? Brightness.light : Brightness.dark,
+      ),
+    );
   }
 }

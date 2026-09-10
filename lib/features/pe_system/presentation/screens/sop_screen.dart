@@ -1,4 +1,5 @@
-import 'dart:typed_data';
+import '../widgets/business_widgets.dart';
+import '../widgets/dashboard_theme.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,18 +7,22 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
-import '../../../../core/constants/colors.dart';
-import '../../../../core/localization/app_localizations.dart';
 import 'qr_scan_page.dart';
 
-class SopScreen extends StatefulWidget {
+class SopScreen extends StatelessWidget {
   const SopScreen({super.key});
-
   @override
-  State<SopScreen> createState() => _SopScreenState();
+  Widget build(BuildContext context) => const DashboardTheme(child: _SopBody());
 }
 
-class _SopScreenState extends State<SopScreen> {
+class _SopBody extends StatefulWidget {
+  const _SopBody();
+
+  @override
+  State<_SopBody> createState() => _SopScreenState();
+}
+
+class _SopScreenState extends State<_SopBody> {
   late final http.Client _client;
   final TextEditingController _serialController = TextEditingController();
   final TextEditingController _stationController = TextEditingController();
@@ -63,8 +68,8 @@ class _SopScreenState extends State<SopScreen> {
     if (normalized.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final updatedHistory = <String>{normalized, ..._stationHistory}.toList()
-      ..sort();
+    final updatedHistory =
+        <String>{normalized, ..._stationHistory}.toList()..sort();
 
     await prefs.setStringList('sop_station_history', updatedHistory);
     if (!mounted) return;
@@ -78,10 +83,7 @@ class _SopScreenState extends State<SopScreen> {
     FocusScope.of(context).unfocus();
     if (_stationHistory.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(AppLocalizations.of(context, 'stationHistoryEmpty')),
-        ),
+        SnackBar(content: Text(bt(context, 'stationHistoryEmpty'))),
       );
       return;
     }
@@ -97,7 +99,7 @@ class _SopScreenState extends State<SopScreen> {
               children: [
                 ListTile(
                   title: Text(
-                    AppLocalizations.of(context, 'stationHistoryTitle'),
+                    bt(context, 'stationHistoryTitle'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -131,11 +133,12 @@ class _SopScreenState extends State<SopScreen> {
   }
 
   Future<void> _fetchSop(String serialNumber) async {
+    if (_isLoading) return;
     final trimmedSerial = serialNumber.trim();
     final trimmedStation = _stationController.text.trim();
     if (trimmedSerial.isEmpty) {
       setState(() {
-        _errorMessage = AppLocalizations.of(context, 'serialNumberRequired');
+        _errorMessage = bt(context, 'serialNumberRequired');
         _pdfBytes = null;
       });
       return;
@@ -143,7 +146,7 @@ class _SopScreenState extends State<SopScreen> {
 
     if (trimmedStation.isEmpty) {
       setState(() {
-        _errorMessage = AppLocalizations.of(context, 'stationRequired');
+        _errorMessage = bt(context, 'stationRequired');
         _pdfBytes = null;
       });
       return;
@@ -176,36 +179,36 @@ class _SopScreenState extends State<SopScreen> {
         await _saveStationToHistory(normalizedStation);
       } else if (response.statusCode == 404) {
         setState(() {
-          _errorMessage = AppLocalizations.of(context, 'sopNotFound');
+          _errorMessage = bt(context, 'sopNotFound');
         });
       } else {
         setState(() {
           _errorMessage =
-              '${AppLocalizations.of(context, 'sopLoadFailed')} (${response.statusCode})';
+              '${bt(context, 'sopLoadFailed')} (${response.statusCode})';
         });
       }
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage =
-            '${AppLocalizations.of(context, 'sopLoadFailed')}: $error';
+        _errorMessage = '${bt(context, 'sopLoadFailed')}: $error';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _showPdfFullScreen(Uint8List pdfBytes, String serialNumber) async {
+  Future<void> _showPdfFullScreen(
+    Uint8List pdfBytes,
+    String serialNumber,
+  ) async {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => SopPdfViewerPage(
-          pdfBytes: pdfBytes,
-          serialNumber: serialNumber,
-        ),
+        builder:
+            (context) => SopPdfViewerPage(
+              pdfBytes: pdfBytes,
+              serialNumber: serialNumber,
+            ),
       ),
     );
   }
@@ -214,153 +217,154 @@ class _SopScreenState extends State<SopScreen> {
     FocusScope.of(context).unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => QRScanPage(
-          onCodeScanned: (code) {
-            _serialController.text = code;
-            _fetchSop(code);
-          },
-        ),
+        builder:
+            (context) => QRScanPage(
+              onCodeScanned: (code) {
+                _serialController.text = code;
+                _fetchSop(code);
+              },
+            ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context, 'sop')),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppLocalizations.of(context, 'sopInstruction'),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _serialController,
-                    focusNode: _serialFocusNode,
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) {
-                      FocusScope.of(context).requestFocus(_stationFocusNode);
-                    },
-                    decoration: InputDecoration(
-                      labelText:
-                          AppLocalizations.of(context, 'serialNumber'),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        color: AppColors.primary,
-                        onPressed: _openScanner,
+    watchBusinessLanguage(context);
+    return BusinessPage(
+      title: bt(context, 'sop'),
+      body: LayoutBuilder(
+        builder:
+            (context, constraints) => CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverToBoxAdapter(
+                    child: BusinessSection(
+                      title: bt(context, 'SOP controls'),
+                      icon: Icons.picture_as_pdf_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(bt(context, 'sopInstruction')),
+                          const SizedBox(height: 16),
+                          TextField(
+                            key: const ValueKey('sop_serial_input'),
+                            controller: _serialController,
+                            focusNode: _serialFocusNode,
+                            enabled: !_isLoading,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted:
+                                (_) => _stationFocusNode.requestFocus(),
+                            decoration: InputDecoration(
+                              labelText: bt(context, 'serialNumber'),
+                              suffixIcon: IconButton(
+                                tooltip: bt(context, 'qrScan'),
+                                icon: const Icon(Icons.qr_code_scanner),
+                                onPressed: _openScanner,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            key: const ValueKey('sop_station_input'),
+                            controller: _stationController,
+                            focusNode: _stationFocusNode,
+                            enabled: !_isLoading,
+                            textCapitalization: TextCapitalization.characters,
+                            onSubmitted:
+                                (_) => _fetchSop(_serialController.text),
+                            decoration: InputDecoration(
+                              labelText: bt(context, 'station'),
+                              suffixIcon: IconButton(
+                                tooltip: bt(context, 'selectStation'),
+                                icon: const Icon(Icons.history),
+                                onPressed:
+                                    _stationHistory.isEmpty
+                                        ? null
+                                        : _openStationSelector,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            key: const ValueKey('sop_view_button'),
+                            onPressed:
+                                _isLoading
+                                    ? null
+                                    : () {
+                                      FocusScope.of(context).unfocus();
+                                      _fetchSop(_serialController.text);
+                                    },
+                            icon: const Icon(Icons.picture_as_pdf_outlined),
+                            label: Text(bt(context, 'viewSop')),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _stationController,
-                    textCapitalization: TextCapitalization.characters,
-                    focusNode: _stationFocusNode,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _fetchSop(_serialController.text),
-                    decoration: InputDecoration(
-                      labelText: AppLocalizations.of(context, 'station'),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.history),
-                        color: _stationHistory.isEmpty
-                            ? Colors.grey
-                            : AppColors.primary,
-                        onPressed:
-                            _stationHistory.isEmpty ? null : _openStationSelector,
-                        tooltip:
-                            AppLocalizations.of(context, 'selectStation'),
-                      ),
-                    ),
+                ),
+                SliverFillRemaining(
+                  hasScrollBody: true,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 240),
+                    child: _buildPdfContent(),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              FocusScope.of(context).unfocus();
-                              _fetchSop(_serialController.text);
-                            },
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: Text(AppLocalizations.of(context, 'viewSop')),
-                    ),
-                  ),
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _errorMessage!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.red),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              child: _buildPdfContent(),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildPdfContent() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_errorMessage != null) {
+      return BusinessEmptyState(
+        message: _errorMessage!,
+        error: true,
+        icon: Icons.error_outline,
+        onRetry: () => _fetchSop(_serialController.text),
+      );
     }
-
-    if (_pdfBytes != null) {
-      return SfPdfViewer.memory(_pdfBytes!);
-    }
-
-    return Center(
-      child: Text(
-        AppLocalizations.of(context, 'sopPlaceholder'),
-        textAlign: TextAlign.center,
-        style: Theme.of(context)
-            .textTheme
-            .bodyLarge
-            ?.copyWith(color: Colors.grey.shade600),
-      ),
+    if (_pdfBytes != null) return SfPdfViewer.memory(_pdfBytes!);
+    return BusinessEmptyState(
+      message: bt(context, 'sopPlaceholder'),
+      icon: Icons.picture_as_pdf_outlined,
     );
   }
 }
 
-class SopPdfViewerPage extends StatefulWidget {
+class SopPdfViewerPage extends StatelessWidget {
   const SopPdfViewerPage({
     super.key,
     required this.pdfBytes,
     required this.serialNumber,
   });
+  final Uint8List pdfBytes;
+  final String serialNumber;
+  @override
+  Widget build(BuildContext context) => DashboardTheme(
+    child: _SopPdfBody(pdfBytes: pdfBytes, serialNumber: serialNumber),
+  );
+}
+
+class _SopPdfBody extends StatefulWidget {
+  const _SopPdfBody({required this.pdfBytes, required this.serialNumber});
 
   final Uint8List pdfBytes;
   final String serialNumber;
 
   @override
-  State<SopPdfViewerPage> createState() => _SopPdfViewerPageState();
+  State<_SopPdfBody> createState() => _SopPdfViewerPageState();
 }
 
-class _SopPdfViewerPageState extends State<SopPdfViewerPage> {
+class _SopPdfViewerPageState extends State<_SopPdfBody> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _enterFullScreen();
+      if (mounted) _enterFullScreen();
     });
   }
 
@@ -369,7 +373,9 @@ class _SopPdfViewerPageState extends State<SopPdfViewerPage> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (mounted) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
   }
 
   Future<void> _exitFullScreen() async {
@@ -385,52 +391,45 @@ class _SopPdfViewerPageState extends State<SopPdfViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchBusinessLanguage(context);
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: SfPdfViewer.memory(widget.pdfBytes),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topLeft,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Material(
+              color: DashboardColors.of(context).surface,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () async {
-                          await _exitFullScreen();
-                          if (mounted) {
-                            Navigator.of(context).pop();
-                          }
-                        },
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      key: const ValueKey('sop_pdf_close'),
+                      tooltip: bt(context, 'close'),
+                      icon: const Icon(Icons.close),
+                      onPressed: () async {
+                        await _exitFullScreen();
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.serialNumber,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: Text(
-                          widget.serialNumber,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.picture_as_pdf_outlined),
+                    const SizedBox(width: 8),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+            Expanded(child: SfPdfViewer.memory(widget.pdfBytes)),
+          ],
+        ),
       ),
     );
   }

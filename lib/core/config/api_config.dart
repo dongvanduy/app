@@ -20,11 +20,11 @@ class ApiConfig {
 
   static const String dataCloudBaseUrl = String.fromEnvironment(
     'DATA_CLOUD_API_BASE_URL',
-    defaultValue: '$host/api/data/',
+    defaultValue: '$host/api/datacloud/',
   );
 
   static const String dataCloudRootPath = String.fromEnvironment(
     'DATA_CLOUD_ROOT_PATH',
-    defaultValue: r'D:\DataCloud',
+    defaultValue: '',
   );
 }

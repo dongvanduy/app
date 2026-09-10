@@ -9,7 +9,8 @@ import '../widgets/data_cloud_item.dart';
 
 class DatacloudProvider with ChangeNotifier {
   static const Duration _requestTimeout = Duration(seconds: 30);
-  static const int _maxUploadSize = 100 * 1024 * 1024;
+  static const int _maxUploadSize = 419430400;
+  static const Duration _transferTimeout = Duration(minutes: 5);
 
   final String baseUrl;
   final String rootPath;
@@ -19,11 +20,13 @@ class DatacloudProvider with ChangeNotifier {
   DataCloudResponse? _dataCloudResponse;
   String? _dataCloudError;
   bool _isLoadingDataCloud = false;
+  DataCloudScope _scope = DataCloudScope.private;
+  bool _disposed = false;
   late final List<String> _pathHistory = <String>[normalizePath(rootPath)];
 
   DatacloudProvider({
     required this.baseUrl,
-    required this.rootPath,
+    this.rootPath = '',
     http.Client? client,
     this.authTokenProvider,
   }) : _client = client ?? http.Client();
@@ -34,8 +37,26 @@ class DatacloudProvider with ChangeNotifier {
   List<String> get pathHistory => List<String>.unmodifiable(_pathHistory);
   String get currentPath => _pathHistory.last;
   bool get canGoBack => _pathHistory.length > 1;
+  DataCloudScope get scope => _scope;
+  bool get allowDelete => scope.allowDelete;
+  bool get allowRename => scope.allowRename;
+
+  Future<void> changeScope(DataCloudScope value) async {
+    if (_isLoadingDataCloud || value == scope) return;
+    _scope = value;
+    _pathHistory
+      ..clear()
+      ..add(normalizePath(rootPath));
+    _dataCloudResponse = null;
+    await fetchDataCloud();
+  }
 
   Future<void> fetchDataCloud({String? path, bool addToHistory = true}) async {
+    if (_isLoadingDataCloud || _disposed) return;
+    await _fetchDataCloud(path: path, addToHistory: addToHistory);
+  }
+
+  Future<void> _fetchDataCloud({String? path, bool addToHistory = true}) async {
     _isLoadingDataCloud = true;
     _dataCloudError = null;
     notifyListeners();
@@ -44,10 +65,13 @@ class DatacloudProvider with ChangeNotifier {
       final normalizedPath = normalizePath(path ?? currentPath);
       final response = await _get(
         'get-data',
-        queryParameters: <String, Object?>{'path': normalizedPath},
+        queryParameters: <String, Object?>{
+          'scope': scope.apiValue,
+          'path': normalizedPath,
+        },
       );
       if (_isSuccess(response)) {
-        final decoded = jsonDecode(response.body);
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is! Map) {
           throw const FormatException(
             'DataCloud response must be a JSON object.',
@@ -55,9 +79,14 @@ class DatacloudProvider with ChangeNotifier {
         }
         _dataCloudResponse = DataCloudResponse.fromJson(
           Map<String, dynamic>.from(decoded),
+          fallbackScope: scope,
+          fallbackPath: normalizedPath,
         );
-        if (addToHistory && normalizedPath != currentPath) {
-          _pathHistory.add(normalizedPath);
+        final actualPath = _dataCloudResponse!.currentPath;
+        if (addToHistory && actualPath != currentPath) {
+          _pathHistory.add(actualPath);
+        } else if (addToHistory || normalizedPath == currentPath) {
+          _pathHistory[_pathHistory.length - 1] = actualPath;
         }
       } else {
         _dataCloudError = _responseError('Failed to load DataCloud', response);
@@ -71,6 +100,7 @@ class DatacloudProvider with ChangeNotifier {
   }
 
   Future<void> searchDataCloud(String keyword) async {
+    if (_isLoadingDataCloud || _disposed) return;
     _isLoadingDataCloud = true;
     _dataCloudError = null;
     notifyListeners();
@@ -78,23 +108,26 @@ class DatacloudProvider with ChangeNotifier {
     try {
       final normalizedKeyword = keyword.trim();
       if (normalizedKeyword.isEmpty) {
-        await fetchDataCloud(addToHistory: false);
+        await _fetchDataCloud(addToHistory: false);
         return;
       }
       final response = await _get(
         'search',
         queryParameters: <String, Object?>{
           'keyword': normalizedKeyword,
+          'scope': scope.apiValue,
           'path': currentPath,
         },
       );
       if (_isSuccess(response)) {
-        final decoded = jsonDecode(response.body);
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is! Map) {
           throw const FormatException('Search response must be a JSON object.');
         }
         _dataCloudResponse = DataCloudResponse.fromJson(
           Map<String, dynamic>.from(decoded),
+          fallbackScope: scope,
+          fallbackPath: currentPath,
         );
       } else {
         _dataCloudError = _responseError(
@@ -110,17 +143,34 @@ class DatacloudProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> deleteItem(String path, String type) async {
+  Future<bool> deleteItem(
+    String path,
+    String type, {
+    DataCloudScope? itemScope,
+  }) async {
+    if (_isLoadingDataCloud) return false;
+    final targetScope = itemScope ?? scope;
+    if (!allowDelete || !targetScope.allowDelete) {
+      _dataCloudError = 'Delete is disabled in Data Training.';
+      notifyListeners();
+      return false;
+    }
     _isLoadingDataCloud = true;
     _dataCloudError = null;
     notifyListeners();
 
     try {
-      final response = await _postJson('delete-items', <Map<String, String>>[
-        <String, String>{'path': normalizePath(path), 'type': type},
-      ]);
+      final response = await _postJson('delete-items', {
+        'items': [
+          {
+            'scope': targetScope.apiValue,
+            'path': normalizePath(path),
+            'type': type,
+          },
+        ],
+      });
       if (_isSuccess(response)) {
-        await fetchDataCloud(path: currentPath, addToHistory: false);
+        await _fetchDataCloud(path: currentPath, addToHistory: false);
         return _dataCloudError == null;
       } else {
         _dataCloudError = _responseError('Failed to delete item', response);
@@ -135,6 +185,7 @@ class DatacloudProvider with ChangeNotifier {
   }
 
   Future<bool> createFolder(String folderName) async {
+    if (_isLoadingDataCloud) return false;
     final normalizedName = folderName.trim();
     if (normalizedName.isEmpty) {
       _dataCloudError = 'Folder name is required.';
@@ -146,12 +197,13 @@ class DatacloudProvider with ChangeNotifier {
     _dataCloudError = null;
     notifyListeners();
     try {
-      final response = await _postJson('create-folder', <String, String>{
-        'path': currentPath,
-        'folderName': normalizedName,
+      final response = await _sendForm('create-folder', <String, String>{
+        'Scope': scope.apiValue,
+        'Path': currentPath,
+        'FolderName': normalizedName,
       });
       if (_isSuccess(response)) {
-        await fetchDataCloud(addToHistory: false);
+        await _fetchDataCloud(addToHistory: false);
         return _dataCloudError == null;
       } else {
         _dataCloudError = _responseError('Failed to create folder', response);
@@ -165,7 +217,12 @@ class DatacloudProvider with ChangeNotifier {
     return false;
   }
 
-  Future<bool> uploadFiles(List<File> files, {bool isFolder = false}) async {
+  Future<bool> uploadFiles(
+    List<File> files, {
+    bool isFolder = false,
+    List<String>? relativePaths,
+  }) async {
+    if (_isLoadingDataCloud) return false;
     if (files.isEmpty) {
       _dataCloudError = 'No files were selected.';
       notifyListeners();
@@ -177,12 +234,18 @@ class DatacloudProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      if (isFolder &&
+          (relativePaths == null || relativePaths.length != files.length)) {
+        throw StateError(
+          'Folder uploads require a relative path for each file.',
+        );
+      }
+      var totalSize = 0;
       for (final file in files) {
-        if (await file.length() > _maxUploadSize) {
-          throw Exception(
-            'File ${file.path.split(RegExp(r'[/\\]')).last} exceeds 100 MB.',
-          );
-        }
+        totalSize += await file.length();
+      }
+      if (totalSize >= _maxUploadSize) {
+        throw StateError('The upload request must be smaller than 400 MB.');
       }
 
       final response = await _sendWithAuthentication((headers) async {
@@ -191,16 +254,27 @@ class DatacloudProvider with ChangeNotifier {
           _uri(isFolder ? 'upload-folder' : 'upload-file'),
         );
         request.headers.addAll(headers);
-        request.fields['path'] = currentPath;
-        for (final file in files) {
+        request.fields['Scope'] = scope.apiValue;
+        request.fields['Path'] = currentPath;
+        for (var i = 0; i < files.length; i++) {
           request.files.add(
-            await http.MultipartFile.fromPath('files', file.path),
+            await http.MultipartFile.fromPath(
+              'Files',
+              files[i].path,
+              filename:
+                  isFolder
+                      ? normalizePath(relativePaths![i])
+                      : files[i].uri.pathSegments.last,
+            ),
           );
         }
+        if (request.contentLength > _maxUploadSize) {
+          throw StateError('The upload request must be smaller than 400 MB.');
+        }
         return http.Response.fromStream(await _client.send(request));
-      });
+      }, timeout: _transferTimeout);
       if (_isSuccess(response)) {
-        await fetchDataCloud(addToHistory: false);
+        await _fetchDataCloud(addToHistory: false);
         return _dataCloudError == null;
       } else {
         _dataCloudError = _responseError('Failed to upload files', response);
@@ -215,6 +289,7 @@ class DatacloudProvider with ChangeNotifier {
   }
 
   Future<DataCloudDownload?> downloadItem(DataCloudItem item) async {
+    if (_isLoadingDataCloud) return null;
     _isLoadingDataCloud = true;
     _dataCloudError = null;
     notifyListeners();
@@ -222,17 +297,39 @@ class DatacloudProvider with ChangeNotifier {
     try {
       final response = await _get(
         item.isFolder ? 'download-folder' : 'download-file',
-        queryParameters: <String, Object?>{'path': normalizePath(item.path)},
+        queryParameters: <String, Object?>{
+          'scope': item.scope.apiValue,
+          'path': normalizePath(item.path),
+        },
+        timeout: _transferTimeout,
       );
-      if (!_isSuccess(response)) {
+      if (!_isSuccess(response, binary: true)) {
         _dataCloudError = _responseError('Failed to download item', response);
         return null;
       }
 
-      final fileName =
+      final fallbackName =
           item.isFolder && !item.name.toLowerCase().endsWith('.zip')
               ? '${item.name}.zip'
               : item.name;
+      var fileName = fallbackName;
+      final disposition = response.headers['content-disposition'];
+      if (disposition != null) {
+        try {
+          final parameters = HeaderValue.parse(disposition).parameters;
+          final encoded = parameters['filename*'];
+          fileName =
+              encoded != null && encoded.toLowerCase().startsWith("utf-8''")
+                  ? Uri.decodeComponent(encoded.substring(7))
+                  : parameters['filename'] ?? fallbackName;
+        } on FormatException {
+          fileName = fallbackName;
+        }
+      }
+      fileName = fileName.replaceAll('\\', '/').split('/').last;
+      if (fileName.isEmpty || fileName == '.' || fileName == '..') {
+        fileName = fallbackName;
+      }
       return DataCloudDownload(fileName: fileName, bytes: response.bodyBytes);
     } catch (error) {
       _dataCloudError = _friendlyError('Unable to download item', error);
@@ -259,10 +356,12 @@ class DatacloudProvider with ChangeNotifier {
   Future<http.Response> _get(
     String endpoint, {
     Map<String, Object?>? queryParameters,
+    Duration timeout = _requestTimeout,
   }) {
     final uri = _uri(endpoint, queryParameters);
     return _sendWithAuthentication(
       (headers) => _client.get(uri, headers: headers),
+      timeout: timeout,
     );
   }
 
@@ -281,22 +380,25 @@ class DatacloudProvider with ChangeNotifier {
   }
 
   Future<http.Response> _sendWithAuthentication(
-    Future<http.Response> Function(Map<String, String> headers) send,
-  ) async {
+    Future<http.Response> Function(Map<String, String> headers) send, {
+    Duration timeout = _requestTimeout,
+  }) async {
     var response = await send(
       _headers(authTokenProvider?.accessToken),
-    ).timeout(_requestTimeout);
+    ).timeout(timeout);
     final tokenProvider = authTokenProvider;
     if (response.statusCode != HttpStatus.unauthorized ||
         tokenProvider == null) {
       return response;
     }
 
-    final refreshedToken = await tokenProvider.refreshAccessToken();
+    final refreshedToken = await tokenProvider.refreshAccessToken().timeout(
+      _requestTimeout,
+    );
     if (refreshedToken == null || refreshedToken.isEmpty) {
       return response;
     }
-    response = await send(_headers(refreshedToken)).timeout(_requestTimeout);
+    response = await send(_headers(refreshedToken)).timeout(timeout);
     return response;
   }
 
@@ -324,15 +426,22 @@ class DatacloudProvider with ChangeNotifier {
     );
   }
 
-  bool _isSuccess(http.Response response) {
-    return response.statusCode >= 200 && response.statusCode < 300;
+  bool _isSuccess(http.Response response, {bool binary = false}) {
+    if (response.statusCode < 200 || response.statusCode >= 300) return false;
+    if (binary || response.statusCode == 204) return true;
+    try {
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      return json is Map && json['success'] != false;
+    } on FormatException {
+      return false;
+    }
   }
 
   String _responseError(String fallback, http.Response response) {
     var message = fallback;
     if (response.body.trim().isNotEmpty) {
       try {
-        final decoded = jsonDecode(response.body);
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         if (decoded is Map) {
           for (final key in const <String>[
             'message',
@@ -370,30 +479,67 @@ class DatacloudProvider with ChangeNotifier {
   }
 
   String normalizePath(String? path) {
-    final normalizedRoot = rootPath
-        .replaceAll('/', r'\')
-        .replaceAll(RegExp(r'\\+'), r'\')
-        .replaceAll(RegExp(r'\\$'), '');
-    if (path == null || path.trim().isEmpty) {
-      return normalizedRoot;
-    }
+    return normalizeDataCloudPath(path);
+  }
 
-    return path
-        .trim()
-        .replaceAll('/', r'\')
-        .replaceAll(RegExp(r'\\+'), '\\')
-        .replaceAll(RegExp(r'\\$'), '')
-        .replaceFirst(
-          RegExp(
-            '${RegExp.escape(normalizedRoot)}\\\\DataCloud',
-            caseSensitive: false,
-          ),
-          normalizedRoot,
-        );
+  Future<http.Response> _sendForm(String endpoint, Map<String, String> fields) {
+    return _sendWithAuthentication((headers) async {
+      final request =
+          http.MultipartRequest('POST', _uri(endpoint))
+            ..headers.addAll(headers)
+            ..fields.addAll(fields);
+      return http.Response.fromStream(await _client.send(request));
+    });
+  }
+
+  Future<bool> renameItem(DataCloudItem item, String newName) async {
+    if (_isLoadingDataCloud) return false;
+    if (!allowRename || !item.scope.allowRename) {
+      _dataCloudError = 'Rename is disabled in Data Training.';
+      notifyListeners();
+      return false;
+    }
+    if (newName.trim().isEmpty ||
+        newName.contains('/') ||
+        newName.contains('\\') ||
+        newName.trim() == '.' ||
+        newName.trim() == '..') {
+      _dataCloudError = 'Enter a valid name.';
+      notifyListeners();
+      return false;
+    }
+    _isLoadingDataCloud = true;
+    _dataCloudError = null;
+    notifyListeners();
+    try {
+      final response = await _postJson('rename-item', {
+        'scope': item.scope.apiValue,
+        'path': normalizePath(item.path),
+        'type': item.type,
+        'newName': newName.trim(),
+      });
+      if (_isSuccess(response)) {
+        await _fetchDataCloud(addToHistory: false);
+        return _dataCloudError == null;
+      }
+      _dataCloudError = _responseError('Unable to rename item', response);
+    } catch (error) {
+      _dataCloudError = _friendlyError('Unable to rename item', error);
+    } finally {
+      _isLoadingDataCloud = false;
+      notifyListeners();
+    }
+    return false;
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _client.close();
     super.dispose();
   }
