@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../chat/presentation/widgets/chat_unread_badge.dart';
+import '../../../chat/presentation/screens/chat_list_screen.dart';
 import '../providers/code_provider.dart';
 import '../widgets/dashboard_theme.dart';
 import '../../../repair_lookup/presentation/screens/repair_lookup_screen.dart';
@@ -30,16 +32,19 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
     final labels = [
       AppLocalizations.of(context, 'home'),
       AppLocalizations.of(context, 'detail'),
+      AppLocalizations.of(context, 'chatTitle'),
       AppLocalizations.of(context, 'settings'),
     ];
     const icons = [
       Icons.home_outlined,
       Icons.bookmark_border_rounded,
+      Icons.chat_bubble_outline_rounded,
       Icons.settings_outlined,
     ];
     const activeIcons = [
       Icons.home_rounded,
       Icons.bookmark_rounded,
+      Icons.chat_bubble_rounded,
       Icons.settings_rounded,
     ];
     void select(int index) =>
@@ -110,7 +115,7 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(
+                                            _ChatNavigationIcon(index: i, child: Icon(
                                               selectedIndex == i
                                                   ? activeIcons[i]
                                                   : icons[i],
@@ -119,7 +124,7 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
                                                       ? colors.accent
                                                       : colors.muted,
                                               size: 26,
-                                            ),
+                                            )),
                                             const SizedBox(height: 3),
                                             Text(
                                               labels[i],
@@ -182,8 +187,8 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
                       destinations: [
                         for (var i = 0; i < labels.length; i++)
                           NavigationRailDestination(
-                            icon: Icon(icons[i]),
-                            selectedIcon: Icon(activeIcons[i]),
+                            icon: _ChatNavigationIcon(index: i, child: Icon(icons[i])),
+                            selectedIcon: _ChatNavigationIcon(index: i, child: Icon(activeIcons[i])),
                             label: Text(labels[i]),
                           ),
                       ],
@@ -196,6 +201,7 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
                   children: [
                     const HomePage(),
                     RepairLookupScreen(onBack: () => select(0)),
+                    const ChatListScreen(),
                     SettingsPage(onLogout: () => _logout(context)),
                   ],
                 ),
@@ -215,5 +221,16 @@ class _NavigationRailPageState extends State<NavigationRailPage> {
       (route) => false,
     );
     await authLogout;
+  }
+}
+
+class _ChatNavigationIcon extends StatelessWidget {
+  const _ChatNavigationIcon({required this.index, required this.child});
+  final int index;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    if (index != 2) return child;
+    return ChatUnreadBadge(child: child);
   }
 }

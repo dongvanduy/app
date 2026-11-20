@@ -78,12 +78,16 @@ class DashboardCard extends StatelessWidget {
     this.onTap,
     this.gradient = false,
     this.waves = false,
+    this.color,
+    this.borderColor,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final bool gradient;
   final bool waves;
+  final Color? color;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -101,14 +105,15 @@ class DashboardCard extends StatelessWidget {
         ],
       ),
       child: Material(
-        color: colors.surface,
+        color: color ?? colors.surface,
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: radius,
             border: Border.all(
-              color: colors.dark ? colors.divider : Colors.white,
+              color:
+                  borderColor ?? (colors.dark ? colors.divider : Colors.white),
             ),
             gradient:
                 gradient

@@ -27,4 +27,11 @@ class ApiConfig {
     'DATA_CLOUD_ROOT_PATH',
     defaultValue: '',
   );
+
+  static const String _chatBaseOverride = String.fromEnvironment('CHAT_API_BASE_URL');
+  static const String _chatHubOverride = String.fromEnvironment('CHAT_HUB_URL');
+  static String get chatBaseUrl => _chatBaseOverride.isNotEmpty ? _chatBaseOverride
+    : Uri.parse(inventoryBaseUrl.endsWith('/') ? inventoryBaseUrl : '$inventoryBaseUrl/').resolve('chat/').toString();
+  static String get chatHubUrl => _chatHubOverride.isNotEmpty ? _chatHubOverride
+    : Uri.parse(inventoryBaseUrl.endsWith('/') ? inventoryBaseUrl : '$inventoryBaseUrl/').resolve('hubs/chat').toString();
 }

@@ -32,6 +32,10 @@
 // ├── main.dart                            # Điểm vào ứng dụng
 // pubspec.yaml                            # Cấu hình dependencies
 
+import 'dart:async';
+import 'features/pe_system/data/local/scan_store.dart';
+import 'features/pe_system/data/services/scan_sync_service.dart';
+import 'features/pe_system/data/services/search_list_notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -48,6 +52,10 @@ import 'features/inventory_import/data/repositories/inventory_repository_impl.da
 import 'features/inventory_import/presentation/providers/inventory_import_provider.dart';
 import 'core/config/api_config.dart';
 import 'core/network/api_client.dart';
+import 'features/chat/data/datasources/chat_remote_data_source.dart';
+import 'features/chat/data/repositories/chat_repository_impl.dart';
+import 'features/chat/data/services/chat_realtime_service.dart';
+import 'features/chat/presentation/providers/chat_provider.dart';
 import 'features/auth/data/datasources/auth_remote_data_source.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/data/storage/auth_session_storage.dart';
@@ -61,6 +69,8 @@ import 'features/repair_lookup/data/datasources/repair_lookup_remote_data_source
 import 'features/repair_lookup/data/repositories/repair_lookup_repository_impl.dart';
 import 'features/repair_lookup/domain/repositories/repair_lookup_repository.dart';
 
+final scanNavigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -73,16 +83,28 @@ void main() async {
     sessionStorage: SecureAuthSessionStorage(),
   );
   final authProvider = AuthProvider(repository: authRepository);
+  final chatApiClient = ApiClient(baseUrl: ApiConfig.chatBaseUrl, authTokenProvider: authRepository,
+    sessionIdentity: () => authRepository.sessionGeneration);
+  final chatProvider = ChatProvider(
+    repository: ChatRepositoryImpl(ChatRemoteDataSource(chatApiClient)),
+    realtime: ChatRealtimeService(hubUrl: ApiConfig.chatHubUrl, tokens: authRepository),
+    closeClient: chatApiClient.close,
+    onUnauthorized: () {
+      unawaited(authProvider.logout());
+      scanNavigatorKey.currentState?.pushNamedAndRemoveUntil('/sign-in', (_) => false);
+    },
+  );
 
   final apiClient = ApiClient(
     baseUrl: ApiConfig.scanBaseUrl,
     authTokenProvider: authRepository,
   );
+  final inventoryApiClient = ApiClient(
+    baseUrl: ApiConfig.inventoryBaseUrl,
+    authTokenProvider: authRepository,
+  );
   final inventoryRemoteDataSource = InventoryRemoteDataSource(
-    inventoryApiClient: ApiClient(
-      baseUrl: ApiConfig.inventoryBaseUrl,
-      authTokenProvider: authRepository,
-    ),
+    inventoryApiClient: inventoryApiClient,
   );
   final inventoryRepository = InventoryRepositoryImpl(
     remoteDataSource: inventoryRemoteDataSource,
@@ -93,13 +115,72 @@ void main() async {
   final repairLookupRepository = RepairLookupRepositoryImpl(
     remoteDataSource: RepairLookupRemoteDataSource(apiClient: apiClient),
   );
-  final remoteDataSource = RemoteDataSource(apiClient: apiClient);
+  final remoteDataSource = RemoteDataSource(
+    apiClient: apiClient,
+    inventoryApiClient: inventoryApiClient,
+  );
   final repository = CodeRepositoryImpl(remoteDataSource: remoteDataSource);
   final useCase = ManageCodesUseCase(repository: repository);
+  final connectivity = Connectivity();
+  final scanSync = ScanSyncService(
+    store: ScanStore(),
+    server: Uri.parse(ApiConfig.scanBaseUrl).normalizePath().toString(),
+    isConnected:
+        () async =>
+            await connectivity.checkConnectivity() != ConnectivityResult.none,
+    supportsSync: remoteDataSource.supportsScanSync,
+    upload:
+        (scan) => remoteDataSource.scanSerialNumber(
+          scan.sn,
+          searchListId: scan.listId,
+          clientScanId: scan.id,
+          scannedAt: scan.scannedAt,
+        ),
+  );
+  scanSync.observe(connectivity);
   final codeProvider = CodeProvider(
     useCase: useCase,
-    connectivity: Connectivity(),
+    connectivity: connectivity,
+    scanSync: scanSync,
   );
+  bool openScanAfterLogin = false;
+  void openScanFromNotification() {
+    openScanAfterLogin = true;
+    if (!authProvider.isLoggedIn) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!openScanAfterLogin || !authProvider.isLoggedIn) return;
+      final navigator = scanNavigatorKey.currentState;
+      if (navigator == null) return;
+      openScanAfterLogin = false;
+      navigator.pushNamed('/pe-system');
+    });
+  }
+
+  final listNotifications = SearchListNotificationService(
+    useCase: useCase,
+    server: Uri.parse(ApiConfig.scanBaseUrl).normalizePath().toString(),
+    onNewLists: (_) {
+      if (codeProvider.searchListPage == 1) {
+        unawaited(codeProvider.fetchSearchList());
+      }
+    },
+    onOpen: openScanFromNotification,
+  );
+  Object? boundUser;
+  authProvider.addListener(() {
+    final user = authProvider.user;
+    if (identical(boundUser, user)) return;
+    boundUser = user;
+    codeProvider.resetSessionState();
+    chatProvider.bindUser(user?.userId);
+    unawaited(scanSync.bindUser(user?.userId));
+    unawaited(listNotifications.bindUser(user?.userId));
+    if (openScanAfterLogin && user != null) openScanFromNotification();
+  });
+  boundUser = authProvider.user;
+  chatProvider.bindUser(authProvider.user?.userId);
+  unawaited(scanSync.bindUser(authProvider.user?.userId));
+  unawaited(listNotifications.bindUser(authProvider.user?.userId));
   final themeProvider = ThemeProvider();
   final dataCloudProvider = DatacloudProvider(
     baseUrl: ApiConfig.dataCloudBaseUrl,
@@ -120,6 +201,7 @@ void main() async {
       providers: [
         Provider<RepairLookupRepository>.value(value: repairLookupRepository),
         ChangeNotifierProvider(create: (_) => authProvider),
+        ChangeNotifierProvider(create: (_) => chatProvider),
         ChangeNotifierProvider(create: (_) => codeProvider),
         ChangeNotifierProvider(create: (_) => themeProvider),
         ChangeNotifierProvider(create: (_) => dataCloudProvider),
@@ -263,6 +345,7 @@ class _MyAppState extends State<MyApp> {
       data: Theme.of(context),
       duration: const Duration(milliseconds: 300),
       child: MaterialApp(
+        navigatorKey: scanNavigatorKey,
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: themeProvider.themeMode,

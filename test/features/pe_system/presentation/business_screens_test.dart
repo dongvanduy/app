@@ -24,6 +24,7 @@ import 'package:mobile_app/features/pe_system/presentation/screens/sop_screen.da
 import 'package:mobile_app/features/pe_system/presentation/widgets/dashboard_theme.dart';
 import 'package:mobile_app/features/pe_system/presentation/widgets/form_content.dart';
 import '../../../support/business_fakes.dart';
+import 'package:mobile_app/features/pe_system/domain/repositories/code_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -96,7 +97,7 @@ void main() {
               final scaffold = find.byType(Scaffold).last;
               expect(
                 Theme.of(tester.element(scaffold)).colorScheme.primary,
-                dark ? const Color(0xFF69D8C8) : DashboardColors.teal,
+                DashboardColors.orange,
               );
               final scroll = find.byType(Scrollable).first;
               await tester.drag(scroll, const Offset(0, -1800));
@@ -385,7 +386,18 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 class Harness {
-  Harness(this.tester, {this.width = 390, this.scale = 1, this.dark = false}) {
+  Harness(
+    this.tester, {
+    this.width = 390,
+    this.scale = 1,
+    this.dark = false,
+    CodeRepository? codeRepository,
+  }) : code = CodeProvider(
+         useCase: ManageCodesUseCase(
+           repository: codeRepository ?? TestCodeRepository(),
+         ),
+         connectivity: Connectivity(),
+       ) {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -399,10 +411,7 @@ class Harness {
   late final inventory = InventoryImportProvider(repository: repository);
   final language = LanguageProvider();
   final auth = AuthProvider(repository: TestAuthRepository());
-  final code = CodeProvider(
-    useCase: ManageCodesUseCase(repository: TestCodeRepository()),
-    connectivity: Connectivity(),
-  );
+  final CodeProvider code;
   final cloud = DatacloudProvider(
     baseUrl: 'https://example.test/api/',
     client: MockClient(

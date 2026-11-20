@@ -10,6 +10,7 @@ import 'package:mobile_app/features/inventory_import/domain/entities/stock_type.
 import 'package:mobile_app/features/inventory_import/domain/repositories/inventory_repository.dart';
 import 'package:mobile_app/features/pe_system/domain/entities/code_entity.dart';
 import 'package:mobile_app/features/pe_system/domain/entities/search_list_entity.dart';
+import 'package:mobile_app/features/pe_system/domain/entities/scan_result.dart';
 import 'package:mobile_app/features/pe_system/domain/repositories/code_repository.dart';
 
 const sampleUser = AuthUser(
@@ -103,6 +104,10 @@ class TestAuthRepository extends Fake implements AuthRepository {
 
 class TestCodeRepository extends Fake implements CodeRepository {
   @override
+  Future<Map<String, String>> findLocations(List<String> serialNumbers) async =>
+      {};
+
+  @override
   Future<List<SearchListEntity>> getSearchList() async => [
     SearchListEntity(
       id: '1',
@@ -121,5 +126,16 @@ class TestCodeRepository extends Fake implements CodeRepository {
     ),
   ];
   @override
-  Future<bool> scanSerialNumber(String serialNumber) async => true;
+  Future<ScanResult> scanSerialNumber(
+    String serialNumber, {
+    required int searchListId,
+  }) async => ScanResult(
+    eventId: 1,
+    searchListId: searchListId,
+    serialNumber: serialNumber,
+    isFound: true,
+    scannedAt: DateTime.utc(2026, 9, 17, 8),
+    scannedBy: 'TEST001',
+    foundAt: DateTime.utc(2026, 9, 17, 8),
+  );
 }

@@ -1,4 +1,5 @@
 class CodeEntity {
+  static const _unchanged = Object();
   final String id;
   final String serialNumber;
   final String modelName;
@@ -9,6 +10,8 @@ class CodeEntity {
   final int positionInTray;
   final bool isFound;
   final int? foundOrder;
+  final String? location;
+  final DateTime? foundAt;
 
   CodeEntity({
     required this.id,
@@ -21,6 +24,8 @@ class CodeEntity {
     this.positionInTray = 0,
     required this.isFound,
     this.foundOrder,
+    this.location,
+    this.foundAt,
   });
 
   CodeEntity copyWith({
@@ -34,7 +39,9 @@ class CodeEntity {
     int? positionInTray,
     bool? isFound,
     int? foundOrder,
-}){
+    Object? location = _unchanged,
+    Object? foundAt = _unchanged,
+  }) {
     return CodeEntity(
       id: id ?? this.id,
       serialNumber: serialNumber ?? this.serialNumber,
@@ -46,8 +53,13 @@ class CodeEntity {
       positionInTray: positionInTray ?? this.positionInTray,
       isFound: isFound ?? this.isFound,
       foundOrder: foundOrder ?? this.foundOrder,
+      location:
+          identical(location, _unchanged) ? this.location : location as String?,
+      foundAt:
+          identical(foundAt, _unchanged) ? this.foundAt : foundAt as DateTime?,
     );
   }
+
   @override
   String toString() {
     return 'CodeEntity(id: $id, serialNumber: $serialNumber, isFound: $isFound, foundOrder: $foundOrder)';

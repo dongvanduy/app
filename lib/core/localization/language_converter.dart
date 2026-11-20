@@ -1,4 +1,5 @@
 import 'business_translations.dart';
+import 'chat_translations.dart';
 import 'package:flutter/material.dart';
 
 /// Simple in-memory translator for three supported languages.
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 class LanguageConverter {
   static const Map<String, Map<String, String>> _localizedValues = {
     'en': {
+      ...ChatTranslations.en,
       ...BusinessTranslations.en,
       'inventoryImport': 'Inventory Import',
       'greeting': 'Hello,',
@@ -99,6 +101,7 @@ class LanguageConverter {
       'sopNotFound': 'SOP not found for this SerialNumber and station',
     },
     'vi': {
+      ...ChatTranslations.vi,
       ...BusinessTranslations.vi,
       'inventoryImport': 'Inventory Import',
       'greeting': 'Xin chào,',
@@ -187,6 +190,7 @@ class LanguageConverter {
       'sopNotFound': 'Không tìm thấy SOP cho SerialNumber và trạm này',
     },
     'zh': {
+      ...ChatTranslations.zh,
       ...BusinessTranslations.zh,
       'inventoryImport': '库存导入',
       'greeting': '您好，',

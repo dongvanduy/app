@@ -3,6 +3,9 @@ import '../../domain/entities/code_entity.dart';
 import '../../domain/entities/search_list_entity.dart';
 import '../../domain/repositories/code_repository.dart';
 import '../datasources/remote_datasource.dart';
+import '../models/code_model.dart';
+import '../../domain/entities/borrow_repair_result.dart';
+import '../../domain/entities/scan_result.dart';
 
 class CodeRepositoryImpl implements CodeRepository {
   final RemoteDataSource remoteDataSource;
@@ -10,41 +13,79 @@ class CodeRepositoryImpl implements CodeRepository {
   CodeRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<List<SearchListEntity>> getSearchList() async {
-    try {
-      final searchLists = await remoteDataSource.getSearchList();
-      return searchLists
-          .map((model) => SearchListEntity(
-                id: model.id,
-                listName: model.listName,
-                createdAt: model.createdAt,
-                createdBy: model.createdBy,
-                items: model.items
-                    .map((item) => CodeEntity(
-                          id: item.id,
-                          serialNumber: item.serialNumber,
-                          modelName: item.modelName,
-                          shelfCode: item.shelfCode,
-                          columnNumber: item.columnNumber,
-                          levelNumber: item.levelNumber,
-                          trayNumber: item.trayNumber,
-                          positionInTray: item.positionInTray,
-                          isFound: item.isFound,
-                        ))
-                    .toList(),
-              ))
-          .toList();
-    } on ServerException {
-      rethrow;
-    } catch (e) {
-      throw ServerException('Lỗi lấy danh sách mã: $e');
-    }
+  Future<Map<String, String>> findLocations(List<String> serialNumbers) =>
+      remoteDataSource.findLocations(serialNumbers);
+
+  @override
+  Future<BorrowRepairResult> borrowRepair({
+    required List<String> serialNumbers,
+    required String borrower,
+  }) => remoteDataSource.borrowRepair(
+    serialNumbers: serialNumbers,
+    borrower: borrower,
+  );
+
+  @override
+  Future<List<SearchListEntity>> getSearchList() async =>
+      (await remoteDataSource.getSearchList()).map(_toEntity).toList();
+
+  @override
+  Future<SearchListPage> getSearchListPage({
+    required int page,
+    int pageSize = 20,
+  }) async {
+    final result = await remoteDataSource.getSearchListPage(
+      page: page,
+      pageSize: pageSize,
+    );
+    return SearchListPage(
+      page: result.page,
+      pageSize: result.pageSize,
+      totalLists: result.totalLists,
+      totalPages: result.totalPages,
+      lists: result.lists.map(_toEntity).toList(),
+    );
   }
 
   @override
-  Future<bool> scanSerialNumber(String serialNumber) async {
+  Future<SearchListEntity> getSearchListDetails(int searchListId) async =>
+      _toEntity(await remoteDataSource.getSearchListDetails(searchListId));
+
+  static SearchListEntity _toEntity(SearchListModel model) => SearchListEntity(
+    id: model.id,
+    listName: model.listName,
+    createdAt: model.createdAt,
+    createdBy: model.createdBy,
+    hasDetails: model.hasDetails,
+    items:
+        model.items
+            .map(
+              (item) => CodeEntity(
+                id: item.id,
+                serialNumber: item.serialNumber,
+                modelName: item.modelName,
+                shelfCode: item.shelfCode,
+                columnNumber: item.columnNumber,
+                levelNumber: item.levelNumber,
+                trayNumber: item.trayNumber,
+                positionInTray: item.positionInTray,
+                isFound: item.isFound,
+                foundAt: item.foundAt,
+              ),
+            )
+            .toList(),
+  );
+
+  @override
+  Future<ScanResult> scanSerialNumber(
+    String serialNumber, {
+    required int searchListId,
+  }) async {
     try {
-      return await remoteDataSource.scanSerialNumber(serialNumber);
+      return await remoteDataSource.scanSerialNumber(
+        serialNumber,
+        searchListId: searchListId,
+      );
     } on ServerException {
       rethrow;
     } catch (e) {

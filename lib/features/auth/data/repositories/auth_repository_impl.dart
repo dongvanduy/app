@@ -13,6 +13,15 @@ class AuthRepositoryImpl implements AuthRepository {
 
   AuthSessionModel? _session;
   Future<String?>? _refreshOperation;
+  int _sessionGeneration = 0;
+  int get sessionGeneration => _sessionGeneration;
+  Future<void> _storageOperation = Future<void>.value();
+
+  Future<void> _persist(Future<void> Function() operation) {
+    final next = _storageOperation.then((_) => operation());
+    _storageOperation = next.catchError((Object _) {});
+    return next;
+  }
 
   AuthRepositoryImpl({
     required this.remoteDataSource,
@@ -27,7 +36,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AuthUser?> restoreSession() async {
-    _session = await sessionStorage.read();
+    final generation = ++_sessionGeneration;
+    final restored = await sessionStorage.read();
+    if (generation != _sessionGeneration) return null;
+    _session = restored;
     final storedSession = _session;
     if (storedSession == null) {
       return null;
@@ -66,27 +78,34 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   Future<AuthUser> _loadCurrentUser(String token) async {
+    final generation = _sessionGeneration;
     final user = await remoteDataSource.me(token);
     final session = _session;
-    if (session == null) {
+    if (session == null || generation != _sessionGeneration) {
       throw const ServerException(
         'Authentication session is no longer available.',
         kind: ApiFailureKind.unauthorized,
       );
     }
     _session = session.copyWithUser(user);
-    await sessionStorage.write(_session!);
+    final updated = _session!;
+    await _persist(() => sessionStorage.write(updated));
     return user;
   }
 
   @override
   Future<AuthUser> login(String username, String password) async {
+    final generation = ++_sessionGeneration;
+    _refreshOperation = null;
     final session = await remoteDataSource.login(
       username.trim(),
       password,
     );
+    if (generation != _sessionGeneration) {
+      throw const ServerException('Authentication session changed.', kind: ApiFailureKind.unauthorized);
+    }
     _session = session;
-    await sessionStorage.write(session);
+    await _persist(() => sessionStorage.write(session));
     return session.user;
   }
 
@@ -107,6 +126,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   Future<String?> _refreshTokens() async {
+    final generation = _sessionGeneration;
     final currentSession = _session;
     if (currentSession == null || currentSession.refreshToken.isEmpty) {
       return null;
@@ -115,10 +135,12 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final refreshedSession =
           await remoteDataSource.refresh(currentSession.refreshToken);
+      if (generation != _sessionGeneration) return null;
       _session = refreshedSession;
-      await sessionStorage.write(refreshedSession);
-      return refreshedSession.accessToken;
+      await _persist(() => sessionStorage.write(refreshedSession));
+      return generation == _sessionGeneration ? refreshedSession.accessToken : null;
     } on ServerException catch (error) {
+      if (generation != _sessionGeneration) return null;
       if (error.kind == ApiFailureKind.unauthorized ||
           error.statusCode == 400) {
         await _clearSession();
@@ -152,8 +174,10 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   Future<void> _clearSession() async {
+    _sessionGeneration++;
+    _refreshOperation = null;
     _session = null;
-    await sessionStorage.clear();
+    await _persist(sessionStorage.clear);
   }
 
   bool _isTemporaryFailure(ServerException error) {

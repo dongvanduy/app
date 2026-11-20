@@ -1,6 +1,39 @@
 /// UI text only. Wire values and backend messages remain unchanged.
 class BusinessTranslations {
   static const vi = <String, String>{
+    'pe_borrow': 'Cho mượn',
+    'pe_borrower': 'Tên người mượn',
+    'pe_borrow_operator': 'Người thực hiện',
+    'pe_borrower_required': 'Vui lòng nhập tên người mượn.',
+    'pe_borrow_cancel': 'Hủy',
+    'pe_borrow_sending': 'Đang gửi…',
+    'pe_borrowed_count': 'Đã cho mượn',
+    'pe_borrow_failed': 'Không thể cho mượn. Vui lòng thử lại.',
+    'pe_borrow_unavailable':
+        'Không còn SN đủ điều kiện trong đợt này. Hãy đóng và mở lại hộp thoại.',
+    'pe_borrow_login_required': 'Vui lòng đăng nhập để cho mượn.',
+    'pe_location_failed':
+        'Chưa tải được Location. Bạn vẫn có thể quét và cho mượn.',
+    'pe_scan_recording': 'Đang ghi nhận scan…',
+    'pe_scan_cooldown': 'Chờ 2 giây…',
+    'pe_scan_pending': 'Chưa đồng bộ',
+    'pe_scan_occurrences': 'lượt',
+    'pe_scan_sync': 'Đồng bộ',
+    'pe_scan_errors_title': 'Lượt scan cần xử lý',
+    'pe_scan_errors_count': 'Có',
+    'pe_scan_errors_view': 'xem chi tiết',
+    'pe_list_load_failed':
+        'Không thể tải danh sách tìm kiếm. Vui lòng thử lại.',
+    'pe_list_endpoint_missing':
+        'Máy chủ chưa hỗ trợ tải chi tiết danh sách. Vui lòng triển khai API mới.',
+    'pe_list_deleted':
+        'Danh sách đã chọn không còn tồn tại. Vui lòng đồng bộ lại.',
+    'pe_list_invalid': 'Dữ liệu danh sách tìm kiếm không hợp lệ.',
+    'pe_list_offline':
+        'Cần có mạng để tải đầy đủ danh sách này trước khi scan.',
+    'pe_list_unauthorized':
+        'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+    'pe_list_forbidden': 'Bạn không có quyền xem danh sách tìm kiếm.',
     'lookup_title': 'Tra cứu sửa chữa',
     'lookup_enter_sn': 'Nhập SN',
     'lookup_search': 'Tra cứu',
@@ -38,11 +71,13 @@ class BusinessTranslations {
     'lookup_loading': 'Đang tải…',
     'lookup_network_error': 'Không có kết nối mạng. Vui lòng thử lại.',
     'lookup_timeout': 'Yêu cầu quá thời gian chờ. Vui lòng thử lại.',
-    'lookup_unauthorized': 'Phiên đăng nhập không được xác thực. Vui lòng đăng nhập lại.',
+    'lookup_unauthorized':
+        'Phiên đăng nhập không được xác thực. Vui lòng đăng nhập lại.',
     'lookup_forbidden': 'Bạn không có quyền xem dữ liệu này.',
     'lookup_invalid_response': 'Dữ liệu trả về không hợp lệ. Vui lòng thử lại.',
     'lookup_server_error': 'Máy chủ chưa xử lý được yêu cầu. Vui lòng thử lại.',
-    'lookup_resource_not_found': 'Không tìm thấy tài nguyên yêu cầu trên máy chủ.',
+    'lookup_resource_not_found':
+        'Không tìm thấy tài nguyên yêu cầu trên máy chủ.',
     'lookup_business_error': 'Không thể tra cứu dữ liệu này.',
     'lookup_unknown_error': 'Không thể tải dữ liệu. Vui lòng thử lại.',
     'retry': 'Thử lại',
@@ -154,6 +189,38 @@ class BusinessTranslations {
     'signin_hint': 'Đăng nhập để bắt đầu công việc',
   };
   static const en = <String, String>{
+    'pe_borrow': 'Lend',
+    'pe_borrower': 'Borrower name',
+    'pe_borrow_operator': 'Performed by',
+    'pe_borrower_required': 'Enter the borrower name.',
+    'pe_borrow_cancel': 'Cancel',
+    'pe_borrow_sending': 'Sending…',
+    'pe_borrowed_count': 'Borrowed',
+    'pe_borrow_failed': 'Unable to lend. Please try again.',
+    'pe_borrow_unavailable':
+        'This batch is no longer available. Close and reopen the dialog.',
+    'pe_borrow_login_required': 'Sign in to lend serial numbers.',
+    'pe_location_failed':
+        'Unable to load locations. You can still scan and lend.',
+    'pe_scan_recording': 'Recording scan…',
+    'pe_scan_cooldown': 'Wait 2 seconds…',
+    'pe_scan_pending': 'Not synchronized',
+    'pe_scan_occurrences': 'scans',
+    'pe_scan_sync': 'Synchronize',
+    'pe_scan_errors_title': 'Scans requiring attention',
+    'pe_scan_errors_count': 'There are',
+    'pe_scan_errors_view': 'view details',
+    'pe_list_load_failed': 'Unable to load search lists. Please try again.',
+    'pe_list_endpoint_missing':
+        'The server does not support list details yet. Deploy the updated API.',
+    'pe_list_deleted':
+        'The selected list no longer exists. Synchronize the lists again.',
+    'pe_list_invalid': 'The search list response is invalid.',
+    'pe_list_offline':
+        'Connect to the network to load this list before scanning.',
+    'pe_list_unauthorized':
+        'Your session is no longer valid. Please sign in again.',
+    'pe_list_forbidden': 'You do not have permission to view search lists.',
     'lookup_title': 'Repair lookup',
     'lookup_enter_sn': 'Enter SN',
     'lookup_search': 'Search',
@@ -189,13 +256,18 @@ class BusinessTranslations {
     'lookup_prompt': 'Enter or scan an SN to view its information and history.',
     'lookup_empty': 'No history yet.',
     'lookup_loading': 'Loading…',
-    'lookup_network_error': 'Unable to connect. Check your network and try again.',
+    'lookup_network_error':
+        'Unable to connect. Check your network and try again.',
     'lookup_timeout': 'The request timed out. Please try again.',
-    'lookup_unauthorized': 'Your session is not authorized. Please sign in again.',
+    'lookup_unauthorized':
+        'Your session is not authorized. Please sign in again.',
     'lookup_forbidden': 'You do not have permission to view this data.',
-    'lookup_invalid_response': 'The server returned invalid data. Please try again.',
-    'lookup_server_error': 'The server could not complete the request. Please try again.',
-    'lookup_resource_not_found': 'The requested resource was not found on the server.',
+    'lookup_invalid_response':
+        'The server returned invalid data. Please try again.',
+    'lookup_server_error':
+        'The server could not complete the request. Please try again.',
+    'lookup_resource_not_found':
+        'The requested resource was not found on the server.',
     'lookup_business_error': 'Unable to look up this data.',
     'lookup_unknown_error': 'Unable to load data. Please try again.',
     'retry': 'Retry',
@@ -307,6 +379,32 @@ class BusinessTranslations {
     'signin_hint': 'Sign in to get started',
   };
   static const zh = <String, String>{
+    'pe_borrow': '借出',
+    'pe_borrower': '借用人姓名',
+    'pe_borrow_operator': '操作人员',
+    'pe_borrower_required': '请输入借用人姓名。',
+    'pe_borrow_cancel': '取消',
+    'pe_borrow_sending': '正在提交…',
+    'pe_borrowed_count': '已借出',
+    'pe_borrow_failed': '无法借出，请重试。',
+    'pe_borrow_unavailable': '本批次已不可用，请关闭并重新打开对话框。',
+    'pe_borrow_login_required': '请登录后借出。',
+    'pe_location_failed': '无法加载库位，仍可扫描和借出。',
+    'pe_scan_recording': '正在记录扫描…',
+    'pe_scan_cooldown': '请等待 2 秒…',
+    'pe_scan_pending': '未同步',
+    'pe_scan_occurrences': '次',
+    'pe_scan_sync': '同步',
+    'pe_scan_errors_title': '需要处理的扫描',
+    'pe_scan_errors_count': '共有',
+    'pe_scan_errors_view': '查看详情',
+    'pe_list_load_failed': '无法加载搜索列表，请重试。',
+    'pe_list_endpoint_missing': '服务器尚未支持列表详情，请部署新版 API。',
+    'pe_list_deleted': '所选列表已不存在，请重新同步。',
+    'pe_list_invalid': '搜索列表数据无效。',
+    'pe_list_offline': '请联网后先加载完整列表，再进行扫描。',
+    'pe_list_unauthorized': '登录会话无效，请重新登录。',
+    'pe_list_forbidden': '没有查看搜索列表的权限。',
     'lookup_title': '维修查询',
     'lookup_enter_sn': '输入 SN',
     'lookup_search': '查询',

@@ -1,0 +1,47 @@
+# Chat nhóm Android
+
+Hoàn thiện thao tác @ trên mobile: mở hội thoại nhóm rồi bấm nút **@** cạnh emoji hoặc gõ `@`, tìm theo tên đầy đủ (có dấu cách), tên không dấu hay mã tài khoản, sau đó chọn đúng người. Tên đã chọn được tô màu ngay trong ô soạn và trong tin đã gửi; dán/gõ một tên bắt đầu bằng @ không tự tạo định danh. Nút @ chèn tại vị trí con trỏ/vùng chọn, giữ đúng đơn vị UTF-16 khi có emoji. Phím mũi tên/Enter chọn gợi ý, Escape/nút X đóng; không gián đoạn IME. Khi đạt giới hạn, app báo lỗi tại ô soạn thay vì im lặng bỏ thao tác.
+
+Bộ chọn có trạng thái đang tải, tải lỗi/Thử lại và không tìm thấy. Tải danh sách thành viên tách khỏi lịch sử: lỗi roster không chặn tin thường. Mỗi lần tải có revision và kiểm tra generation/epoch, nên phản hồi cũ không khôi phục người đã rời hay ghi đè danh sách mới. Người đang được trỏ tới giữ theo user ID khi danh sách đổi thứ tự; nếu người đó rời nhóm thì yêu cầu chọn lại, Enter không tự chuyển sang người khác. Bộ chọn chỉ hiện khi ô soạn có focus, hội thoại đang ở trước và app ở foreground. Tap vào gợi ý không làm mất bàn phím hoặc con trỏ; bản nháp, file và UUID retry vẫn giữ cơ chế hiện có.
+
+`chat_mentions.dart` kiểm tra vùng hợp lệ, bỏ metadata chồng lấn/sai UTF-16; `chat_mention_spans.dart` dùng chung cho ô soạn và nội dung đã gửi. Dữ liệu mention không hợp lệ chỉ còn chữ thường, không tô nhầm người. Badge @ độc lập với badge unread thường và có nhãn đọc được bằng trình đọc màn hình. Composer cuộn được khi bàn phím/thông báo lỗi làm giảm chiều cao để nút Gửi vẫn truy cập được trên PDA.
+
+`chat_mention_completion_test.dart` bổ sung hồi quy cho chèn/sửa/dán, tên đầy đủ, highlight khi soạn, IME, tải lỗi/Thử lại, phản hồi sai thứ tự/logout, badge và màn PDA ba ngôn ngữ. Chưa chạy được các test Flutter hoặc build APK: `flutter.sdk=C:\src\flutter` đang trỏ tới thư mục không tồn tại; Android SDK cấu hình trong `android/local.properties` cũng chưa có trên máy này. Tìm SDK local/offline chưa thấy, nguồn tải chính thức trả proxy 407. Khôi phục SDK tương thích trước khi xác nhận chạy Android; không nâng dependencies để xử lý vấn đề công cụ.
+
+Thêm @nhắc đến: gõ `@` và chọn thành viên theo tên/mã tài khoản; tên trùng được phân biệt bằng username. Gợi ý hỗ trợ bàn phím PDA (mũi tên/Enter/Escape), không chọn lúc IME đang soạn. Chọn nhiều người trong tin hoặc chú thích ảnh; gõ tay tên không tự tạo metadata. Tin nhắc mình có viền nổi bật, tên được tô màu, nhóm có badge `@` khi API báo `unreadMentionCount > 0`. Badge mở nhóm bình thường, không nhảy đến tin cũ; không có `@mọi người`, âm thanh hoặc push mới.
+
+Payload gửi thêm `mentions: [{userId,start,length}]`, tính theo UTF-16; endpoint ảnh dùng cùng mảng mã hóa JSON trong trường multipart `mentions`. DTO thiếu trường được hiểu là `[]`; tin cũ không đổi. Controller mention tách riêng, cập nhật vị trí khi chèn/paste/emoji và bỏ định danh nếu sửa trong tên. Provider giữ metadata draft/pending trong bộ nhớ; retry giữ nguyên UUID/ảnh/mention, logout hoặc mất quyền xóa metadata và bỏ callback cũ. Tên lịch sử giữ nguyên khi user đổi tên/rời nhóm. Badge lấy từ REST, không cộng trùng sự kiện, không tăng unread cho tự nhắc hoặc tin trước khi tham gia.
+
+Yêu cầu server chạy migration **004_AddChatMentions.sql** sau 001–003, rồi triển khai API trước app. Chỉ nhắc được thành viên đang trong nhóm; lỗi 400 cần chọn lại trong tin mới, retry vẫn giữ yêu cầu ban đầu. Các kiểm thử trong `chat_mentions_test.dart` gồm UTF-16/emoji/sửa tên, IME, retry ảnh, logout và widget 320/360 px. Đã sửa fixture `chat_fakes.dart` đang chứa nhầm mã màn hình, bổ sung metadata mention cho fake repository. Chưa chạy analyze/test/APK vì máy thiếu Flutter SDK.
+
+Giao diện Tin nhắn dùng cùng tông tím với web: header gradient, avatar chữ viết tắt/biểu tượng nhóm, danh sách hội thoại dạng thẻ, mốc ngày, thông báo hệ thống ở giữa, tin nhận màu xám và tin gửi màu tím. Thanh soạn tin xếp nút ảnh/emoji/ô nhập/Gửi trên một hàng; ảnh xem trước và bảng emoji thu gọn khi bàn phím làm giảm chiều cao màn hình. Trang thông tin nhóm có avatar, huy hiệu vai trò, tab thành viên/cài đặt và nút rời nhóm ở chân trang. Giao diện sáng/tối và Việt/Anh/Trung dùng font, emoji Unicode và Material Icons local.
+
+Các widget giao diện dùng chung nằm trong `lib/features/chat/presentation/widgets`: `chat_theme.dart`, `chat_avatar.dart`, `chat_thread_header.dart`, `chat_composer.dart`, `chat_day_divider.dart` và `chat_role_badge.dart`. Các màn hình giữ điều phối tương tác; API/provider, giới hạn dữ liệu và quyền truy cập không thay đổi. Date divider không gắn read cursor; khóa đo vùng nhìn vẫn thuộc tin nhắn. Không hiển thị trạng thái online giả cho thành viên: chấm kết nối trong header chỉ phản ánh kết nối chat của thiết bị.
+
+`chat_mobile_layout_test.dart` kiểm tra chiều rộng 320/360 px, bàn phím, ảnh+emoji, bố cục nút soạn tin, gửi ảnh/chú thích và không đánh dấu đọc khi màn thông tin nhóm đang che hội thoại. Các widget test hiện có tiếp tục dùng các key cũ. Chưa chạy Flutter analyze/test/build hoặc chụp screenshot Android vì SDK cấu hình tại `C:\src\flutter` vẫn thiếu.
+
+Tab Chat có nút tạo nhóm (nhập tên 1–100 ký tự, chọn 2–99 người khác), dùng chung danh sách với chat trực tiếp. Trong hội thoại nhóm, nút thông tin mở danh sách thành viên, đổi tên/thêm người, đặt/gỡ quản trị viên, chuyển chủ, xóa thành viên và rời nhóm theo quyền. Chủ nhóm phải chuyển quyền trước khi rời, trừ khi là người cuối cùng. Không có package, CDN hay dữ liệu offline mới.
+
+Trong app: mở **Tin nhắn → Tạo nhóm**, nhập tên, chọn ít nhất hai người và bấm dấu xác nhận. Bộ lọc **Tất cả / Cá nhân / Nhóm** dùng chung phân trang và badge hiện có. Trong hội thoại, bấm nút thông tin để mở hai tab **Thành viên / Cài đặt nhóm**; tìm theo tên/mã tài khoản trong danh sách thành viên. Menu ba chấm chỉ hiện các thao tác hợp lệ cho vai trò hiện tại, không hiện menu rỗng khi quản trị viên xem quản trị viên khác. Chủ nhóm chuyển quyền từ menu của thành viên trước khi rời. Các màn hình dùng ChatTheme và bản dịch Việt/Anh/Trung. Khi bàn phím làm giảm chiều cao, phần tóm tắt được thu gọn; thao tác Rời nhóm vẫn có trong tab Cài đặt nhóm.
+
+Quyền hiển thị nằm trong `chat_group_permissions.dart`, widget hàng thành viên tách riêng trong `chat_group_member_tile.dart`. Provider giữ read cursor theo user ngay cả khi sự kiện đến trước lần tải roster đầu tiên, không để snapshot cũ làm lùi trạng thái đã đọc. Việc thu hồi quyền xóa cả cursor và hủy kết quả đang tải theo epoch. Chọn thành viên không nhận kết quả của nhóm/phiên cũ; khi gửi, form khóa dữ liệu cho đến khi yêu cầu hoàn tất. Retry tạo nhóm giữ UUID và payload, thay đổi lựa chọn/tên tạo UUID mới.
+
+Người mới xem được lịch sử/ảnh cũ nhưng badge chỉ tính tin từ lúc tham gia. Tin nhóm hiển thị người gửi và số người đã đọc; bấm để xem danh sách. Thông báo thay đổi nhóm dịch Việt/Anh/Trung, không tăng unread. Chỉ đánh dấu đọc khi hội thoại ở route hiện tại và tin/ảnh thực sự hiển thị.
+
+Các yêu cầu danh sách và unread gửi `includeGroups=true`. DTO Conversation hỗ trợ `participant=null`, `type`, `name`, `memberCount`, `myRole`, `version`; Message có `sender`, `kind`, `systemEvent`. ID/sequence/version giữ dạng chuỗi và so sánh BigInt. Group REST dùng `groups`, `groups/{id}`, `groups/{id}/members`, `/members/{userId}`, `/members/{userId}/role`, `/owner`, `/leave`; chi tiết/roster lấy `conversations/{id}` và `/members`. Gửi tin/ảnh/read giữ endpoint hiện tại. Tạo nhóm giữ UUID và payload cho retry; leave 204 không cần JSON.
+
+Adapter realtime nhận thêm ConversationChanged và ConversationRemoved, payload `{conversationId,version}`. Sau thay đổi tải metadata/members và tải bù lịch sử. Khi mất quyền, xóa lịch sử/draft/pending/cache ảnh theo hội thoại, bỏ response cũ theo epoch và đóng cả route bị màn hình khác che. Reconcile kiểm tra chi tiết các hội thoại đã cache nhưng thiếu trong trang mới; chỉ 404 xác nhận mất quyền, 500 hiển thị lỗi. Logout/đổi tài khoản tiếp tục dùng generation phiên.
+
+Giữ cache ảnh 20 MiB, giới hạn ảnh 5 MiB, text 4.000 UTF-16, theme hiện có và màn PDA 320–360 px. Backend phải chạy migration 001/002/003 trước khi deploy API nhóm; triển khai API trước web/Android. Client cũ không yêu cầu includeGroups vẫn dùng chat trực tiếp.
+
+```powershell
+flutter analyze --no-pub
+flutter test --no-pub test/features/chat test/features/auth test/features/pe_system/presentation
+flutter build apk --debug --no-pub
+```
+
+Thêm `chat_groups_test.dart` cho nullable peer/BIGINT/system DTO, revoke/rejoin và response muộn, REST 404 so với 500, read cursors từng người, cùng widget tạo nhóm/thông tin trên màn 320 px cho ba ngôn ngữ và hai theme. Fake repository/realtime cập nhật hợp đồng nhóm. Máy hiện chưa có Flutter SDK ở `C:\src\flutter` hoặc PATH; chưa chạy analyze/test/build APK. Cần SDK tương thích package_config hiện tại, không nâng dependencies ngoài phạm vi.
+
+`chat_group_integration_test.dart` bổ sung kiểm tra chính sách vai trò, read event trước roster, roster đến muộn sau khi bị xóa, bộ lọc nhóm, tạo nhóm lỗi mạng/thử lại cùng UUID và menu thành viên trên màn 320 px. Chưa xác minh các test này bằng Flutter khi SDK còn thiếu. Không dùng APK cũ trong `build/` làm bản nghiệm thu thay đổi mới.
+
+Nghiệm thu thực tế với ba tài khoản trên Android/web trong LAN, kiểm tra thêm/xóa/chuyển chủ, nhiều kết nối, ảnh và emoji, @mention, badge/read, mất mạng, hết token, nền/resume và logout/đổi tài khoản. Chưa bổ sung push, chat nhóm trên iOS, gọi điện, reply/reaction hoặc @mọi người.

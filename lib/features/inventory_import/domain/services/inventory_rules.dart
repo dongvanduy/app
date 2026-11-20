@@ -9,6 +9,12 @@ class InventoryLocationParser {
   static final RegExp _locationWithoutLevel = RegExp(
     r'^([A-Z]+)(\d+)-K(\d+)$',
   );
+  static final RegExp _repairFullLocation = RegExp(
+    r'^(F0|[A-Z]+)(\d+)-(\d+)-K(\d+)$',
+  );
+  static final RegExp _repairLocationWithoutLevel = RegExp(
+    r'^(F0|[A-Z]+)(\d+)-K(\d+)$',
+  );
   static final RegExp _scrapCarton = RegExp(r'^CARTON-(\d+)$');
 
   const InventoryLocationParser._();
@@ -39,12 +45,16 @@ class InventoryLocationParser {
       }
     }
 
-    final fullMatch = _fullLocation.firstMatch(input);
+    final isRepair = stockType == StockType.repair;
+    final fullMatch =
+        (isRepair ? _repairFullLocation : _fullLocation).firstMatch(input);
     if (fullMatch != null) {
       return _fromMatch(raw, fullMatch, hasLevel: true);
     }
 
-    final withoutLevelMatch = _locationWithoutLevel.firstMatch(input);
+    final withoutLevelMatch =
+        (isRepair ? _repairLocationWithoutLevel : _locationWithoutLevel)
+            .firstMatch(input);
     if (withoutLevelMatch != null) {
       return _fromMatch(raw, withoutLevelMatch, hasLevel: false);
     }

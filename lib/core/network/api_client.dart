@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 import '../error/exceptions.dart';
 import 'auth_token_provider.dart';
@@ -12,25 +14,34 @@ class ApiClient {
   final http.Client _client;
   final Duration timeout;
   final AuthTokenProvider? authTokenProvider;
+  final Object? Function()? sessionIdentity;
 
   ApiClient({
     required this.baseUrl,
     http.Client? client,
     this.timeout = const Duration(seconds: 30),
     this.authTokenProvider,
+    this.sessionIdentity,
   }) : _client = client ?? http.Client();
 
   Future<dynamic> get(
     String endpoint, {
     Map<String, Object?>? queryParameters,
     Map<String, String>? headers,
+    String? debugLabel,
   }) async {
     final uri = _buildUri(endpoint, queryParameters);
     try {
-      final response = await _sendWithAuthentication(
-        (requestHeaders) => _client.get(uri, headers: requestHeaders),
-        headers,
-      ).timeout(timeout);
+      final response = await _sendWithAuthentication((requestHeaders) async {
+        if (kDebugMode && debugLabel != null) {
+          debugPrint('$debugLabel GET $uri');
+        }
+        final response = await _client.get(uri, headers: requestHeaders);
+        if (kDebugMode && debugLabel != null) {
+          debugPrint('$debugLabel GET $uri status=${response.statusCode}');
+        }
+        return response;
+      }, headers).timeout(timeout);
       return _handleResponse(response);
     } on ServerException {
       rethrow;
@@ -50,29 +61,25 @@ class ApiClient {
         kind: ApiFailureKind.network,
       );
     } catch (error) {
-      throw ServerException(
-        'Unable to retrieve data.',
-        responseData: error,
-      );
+      throw ServerException('Unable to retrieve data.', responseData: error);
     }
   }
 
   Future<dynamic> post(
     String endpoint,
-    Map<String, dynamic> data, {
+    Object? data, {
     Map<String, Object?>? queryParameters,
     Map<String, String>? headers,
+    bool retryAfterTokenRefresh = true,
   }) async {
     final uri = _buildUri(endpoint, queryParameters);
     try {
       final response = await _sendWithAuthentication(
-        (requestHeaders) => _client.post(
-          uri,
-          headers: requestHeaders,
-          body: jsonEncode(data),
-        ),
+        (requestHeaders) =>
+            _client.post(uri, headers: requestHeaders, body: jsonEncode(data)),
         headers,
         includeContentType: true,
+        retryAfterTokenRefresh: retryAfterTokenRefresh,
       ).timeout(timeout);
       return _handleResponse(response);
     } on ServerException {
@@ -93,11 +100,41 @@ class ApiClient {
         kind: ApiFailureKind.network,
       );
     } catch (error) {
-      throw ServerException(
-        'Unable to send data.',
-        responseData: error,
-      );
+      throw ServerException('Unable to send data.', responseData: error);
     }
+  }
+
+  Future<dynamic> put(String endpoint, Object? data) => _chatRequest(() async => _handleResponse(
+    await _sendWithAuthentication((headers) => _client.put(_buildUri(endpoint, null), headers: headers, body: jsonEncode(data)),
+      null, includeContentType: true)));
+
+  Future<dynamic> delete(String endpoint) => _chatRequest(() async => _handleResponse(
+    await _sendWithAuthentication((headers) => _client.delete(_buildUri(endpoint, null), headers: headers), null)));
+
+  Future<Uint8List> getBytes(String endpoint) => _chatRequest(() async {
+    final response = await _sendWithAuthentication((headers) => _client.get(_buildUri(endpoint, null), headers: headers),
+      const {'Accept': 'image/jpeg,image/png,image/webp'});
+    if (response.statusCode < 200 || response.statusCode >= 300) _handleResponse(response);
+    return response.bodyBytes;
+  });
+
+  Future<dynamic> postMultipart(String endpoint, {required Map<String, String> fields,
+    required Uint8List bytes, required String fileName}) => _chatRequest(() async => _handleResponse(
+      await _sendWithAuthentication((headers) async {
+        // A request can only be finalized once. Rebuild it from the same bytes on auth retry.
+        final request = http.MultipartRequest('POST', _buildUri(endpoint, null));
+        request.headers.addAll(headers);
+        request.fields.addAll(fields);
+        request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+        return http.Response.fromStream(await _client.send(request));
+      }, null)));
+
+  Future<T> _chatRequest<T>(Future<T> Function() action) async {
+    try { return await action().timeout(timeout); }
+    on ServerException { rethrow; }
+    on TimeoutException { throw const ServerException('Request timed out. Please try again.', kind: ApiFailureKind.timeout); }
+    on SocketException { throw const ServerException('Network unavailable. Check your connection and try again.', kind: ApiFailureKind.network); }
+    on http.ClientException { throw const ServerException('Unable to connect to the server.', kind: ApiFailureKind.network); }
   }
 
   Uri _buildUri(String endpoint, Map<String, Object?>? queryParameters) {
@@ -153,9 +190,10 @@ class ApiClient {
       _errorMessage(response.statusCode, data),
       statusCode: response.statusCode,
       kind: _failureKind(response.statusCode),
-      invalidSerials: invalidSerials is List
-          ? invalidSerials.map((value) => value.toString()).toList()
-          : const <String>[],
+      invalidSerials:
+          invalidSerials is List
+              ? invalidSerials.map((value) => value.toString()).toList()
+              : const <String>[],
       responseData: decoded ?? body,
     );
   }
@@ -164,8 +202,10 @@ class ApiClient {
     Future<http.Response> Function(Map<String, String> headers) send,
     Map<String, String>? requestHeaders, {
     bool includeContentType = false,
+    bool retryAfterTokenRefresh = true,
   }) async {
     final tokenProvider = authTokenProvider;
+    final identity = sessionIdentity?.call();
     var response = await send(
       _headers(
         requestHeaders,
@@ -174,12 +214,16 @@ class ApiClient {
       ),
     );
 
-    if (response.statusCode != 401 || tokenProvider == null) {
+    if (response.statusCode != 401 ||
+        tokenProvider == null ||
+        !retryAfterTokenRefresh) {
       return response;
     }
 
+    if (sessionIdentity != null && identity != sessionIdentity!()) return response;
+
     final refreshedToken = await tokenProvider.refreshAccessToken();
-    if (refreshedToken == null || refreshedToken.isEmpty) {
+    if (refreshedToken == null || refreshedToken.isEmpty || (sessionIdentity != null && identity != sessionIdentity!())) {
       return response;
     }
 

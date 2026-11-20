@@ -7,7 +7,13 @@ import 'dashboard_theme.dart';
 import 'dashboard_widgets.dart';
 
 class CodeItem extends StatelessWidget {
-  const CodeItem({super.key, required this.code, required this.isFound});
+  const CodeItem({
+    super.key,
+    required this.code,
+    required this.isFound,
+    this.borrower,
+  });
+  final String? borrower;
   final CodeEntity code;
   final bool isFound;
   @override
@@ -16,7 +22,11 @@ class CodeItem extends StatelessWidget {
       code.serialNumber,
     );
     final colors = DashboardColors.of(context);
+    final foundBackground =
+        colors.dark ? const Color(0xFF123D2A) : const Color(0xFFE3F7EA);
     return DashboardCard(
+      color: isFound ? foundBackground : null,
+      borderColor: isFound ? colors.success : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -47,16 +57,21 @@ class CodeItem extends StatelessWidget {
             const SizedBox(height: 10),
             Text('${bt(context, 'Model Name')}: ${code.modelName}'),
             Text(
-              'Location: ${code.shelfCode} - C${code.columnNumber} L${code.levelNumber} T${code.trayNumber} P${code.positionInTray}',
+              'Location: ${code.location ?? bt(context, 'No location')}',
               style: TextStyle(color: colors.muted),
             ),
-            if (isFound || recent) ...[
+            if (isFound || recent || borrower != null) ...[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  if (isFound)
+                  if (borrower != null)
+                    Text(
+                      'Borrower: $borrower',
+                      style: TextStyle(color: colors.success),
+                    )
+                  else if (isFound)
                     Text(
                       bt(context, 'Found'),
                       style: TextStyle(color: colors.success),

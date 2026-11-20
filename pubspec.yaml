@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+5
+version: 1.0.1+6
 
 environment:
   sdk: ^3.7.2
@@ -37,6 +37,8 @@ dependencies:
   audioplayers: ^5.2.1
   qr_code_scanner_plus: ^2.0.10
   shared_preferences: ^2.2.2
+  sqflite: ^2.4.2
+  uuid: ^4.5.1
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
   file_picker: ^8.1.2
@@ -45,7 +47,9 @@ dependencies:
   vibration: ^2.0.0
   syncfusion_flutter_pdfviewer: ^31.1.21
   flutter_secure_storage: 10.3.1
-  package_info_plus: ^8.3.1
+  package_info_plus: ^8.3.1
+  flutter_svg: ^2.0.17
+  flutter_local_notifications: 19.5.0
 
 dev_dependencies:
   flutter_test:
@@ -57,6 +61,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  sqflite_common_ffi: ^2.3.6
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -68,7 +73,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sounds/iphone.mp3
-    - assets/logo/logo.png
+    - assets/logo/logo.png
+    - assets/logo/fab.svg
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
