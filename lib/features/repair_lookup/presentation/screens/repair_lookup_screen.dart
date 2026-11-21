@@ -114,7 +114,7 @@ class _RepairLookupBodyState extends State<_RepairLookupBody> {
             ? ''
             : '${count == total ? '$count' : '$count/$total'} ${bt(context, 'lookup_records')} · ';
     return Material(
-      color: c.background,
+      type: MaterialType.transparency,
       child: SafeArea(
         child: Column(
           children: [

@@ -5,14 +5,14 @@ import 'dashboard_theme.dart';
 class DashboardPage extends StatelessWidget {
   const DashboardPage({
     super.key,
-    required this.title,
+    this.title,
     required this.scrollKey,
     required this.child,
     this.trailing,
     this.maxWidth = 1100,
   });
 
-  final String title;
+  final String? title;
   final String scrollKey;
   final Widget child;
   final Widget? trailing;
@@ -24,6 +24,7 @@ class DashboardPage extends StatelessWidget {
       child: Builder(
         builder: (context) {
           return Scaffold(
+            backgroundColor: Colors.transparent,
             body: SafeArea(
               bottom: false,
               child: SingleChildScrollView(
@@ -37,25 +38,26 @@ class DashboardPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Semantics(
-                                  header: true,
-                                  child: Text(
-                                    title,
-                                    style: const TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: -0.5,
+                          if (title != null)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Semantics(
+                                    header: true,
+                                    child: Text(
+                                      title!,
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -0.5,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              if (trailing != null) trailing!,
-                            ],
-                          ),
-                          const SizedBox(height: 20),
+                                if (trailing != null) trailing!,
+                              ],
+                            ),
+                          if (title != null) const SizedBox(height: 20),
                           child,
                         ],
                       ),
@@ -80,6 +82,7 @@ class DashboardCard extends StatelessWidget {
     this.waves = false,
     this.color,
     this.borderColor,
+    this.tint,
   });
 
   final Widget child;
@@ -88,6 +91,7 @@ class DashboardCard extends StatelessWidget {
   final bool waves;
   final Color? color;
   final Color? borderColor;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
@@ -115,14 +119,13 @@ class DashboardCard extends StatelessWidget {
               color:
                   borderColor ?? (colors.dark ? colors.divider : Colors.white),
             ),
-            gradient:
-                gradient
-                    ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [colors.surface, colors.tint],
-                    )
-                    : null,
+            gradient: gradient
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color ?? colors.surface, tint ?? colors.tint],
+                  )
+                : null,
           ),
           child: InkWell(
             onTap: onTap,

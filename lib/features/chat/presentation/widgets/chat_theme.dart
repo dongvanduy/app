@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_wave_background.dart';
+
 /// Colors shared with the web chat, scoped to messaging screens.
 class ChatColors {
   const ChatColors(this.dark);
   factory ChatColors.of(BuildContext context) => ChatColors(Theme.of(context).brightness == Brightness.dark);
   final bool dark;
 
-  static const purple = Color(0xFF5145DF);
+  static const purple = Color(0xFF315FE7);
   static const headerGradient = LinearGradient(
-    colors: [Color(0xFF5145DF), Color(0xFF302682)],
+    colors: [Color(0xFF315FE7), Color(0xFF253A7B)],
     begin: Alignment.topLeft, end: Alignment.bottomRight,
   );
   static const sentGradient = LinearGradient(
-    colors: [Color(0xFF594BEA), Color(0xFF4034D3)],
+    colors: [Color(0xFF4876F2), Color(0xFF305BD9)],
     begin: Alignment.topLeft, end: Alignment.bottomRight,
   );
 
-  Color get accent => dark ? const Color(0xFFB4ACFF) : purple;
-  Color get background => dark ? const Color(0xFF151727) : const Color(0xFFFAFAFF);
+  Color get accent => dark ? const Color(0xFF9CB9FF) : purple;
+  Color get background => dark ? const Color(0xFF0F162D) : const Color(0xFFF0F5FF);
   Color get surface => dark ? const Color(0xFF1F2235) : Colors.white;
   Color get field => dark ? const Color(0xFF272B41) : const Color(0xFFF4F5FB);
   Color get incoming => dark ? const Color(0xFF2B3048) : const Color(0xFFECEEF7);
@@ -25,13 +27,14 @@ class ChatColors {
   Color get readPill => dark ? const Color(0xFF3B3A66) : const Color(0xFFDFE1FF);
   Color get border => dark ? const Color(0xFF363B55) : const Color(0xFFE6E8F2);
   Color get text => dark ? const Color(0xFFF1F2FC) : const Color(0xFF1C213C);
-  Color get muted => dark ? const Color(0xFFAFB5D0) : const Color(0xFF717A98);
+  Color get muted => dark ? const Color(0xFFB5C2E0) : const Color(0xFF586583);
   Color get danger => dark ? const Color(0xFFFF9CB5) : const Color(0xFFB0344E);
 }
 
 class ChatTheme extends StatelessWidget {
-  const ChatTheme({super.key, required this.child});
+  const ChatTheme({super.key, required this.child, this.embedded = false});
   final Widget child;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +47,7 @@ class ChatTheme extends StatelessWidget {
     final border = OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide(color: c.border));
     return Theme(data: parent.copyWith(
       colorScheme: scheme,
-      scaffoldBackgroundColor: c.background,
+      scaffoldBackgroundColor: Colors.transparent,
       dividerColor: c.border,
       textTheme: parent.textTheme.apply(bodyColor: c.text, displayColor: c.text),
       iconTheme: IconThemeData(color: c.muted),
@@ -74,6 +77,6 @@ class ChatTheme extends StatelessWidget {
       bottomSheetTheme: BottomSheetThemeData(backgroundColor: c.surface, surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22)))),
       popupMenuTheme: PopupMenuThemeData(color: c.surface, surfaceTintColor: Colors.transparent, shape: shape),
-    ), child: child);
+    ), child: embedded ? child : AppWaveBackground(child: child));
   }
 }
