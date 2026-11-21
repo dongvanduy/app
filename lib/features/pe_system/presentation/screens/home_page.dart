@@ -13,26 +13,24 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DashboardPage(
-      title: AppLocalizations.of(context, 'home'),
       scrollKey: 'home-scroll',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _WelcomeCard(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth + 32;
               final largeText =
                   MediaQuery.textScalerOf(context).scale(16) >= 24;
-              final columns =
-                  width < 360 || (width < 600 && largeText)
-                      ? 1
-                      : width < 600
-                      ? 2
-                      : width < 1000
-                      ? 3
-                      : 4;
+              final columns = width < 320 || (width < 600 && largeText)
+                  ? 1
+                  : width < 600
+                  ? 2
+                  : width < 1000
+                  ? 3
+                  : 4;
               final features = DashboardFeature.homeOrder;
               return Column(
                 children: [
@@ -41,20 +39,19 @@ class HomePage extends StatelessWidget {
                     start < features.length;
                     start += columns
                   ) ...[
-                    if (start > 0) const SizedBox(height: 16),
+                    if (start > 0) const SizedBox(height: 10),
                     IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           for (var offset = 0; offset < columns; offset++) ...[
-                            if (offset > 0) const SizedBox(width: 16),
+                            if (offset > 0) const SizedBox(width: 10),
                             Expanded(
-                              child:
-                                  start + offset < features.length
-                                      ? _FunctionCard(
-                                        feature: features[start + offset],
-                                      )
-                                      : const SizedBox.shrink(),
+                              child: start + offset < features.length
+                                  ? _FunctionCard(
+                                      feature: features[start + offset],
+                                    )
+                                  : const SizedBox.shrink(),
                             ),
                           ],
                         ],
@@ -78,23 +75,24 @@ class _WelcomeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final colors = DashboardColors.of(context);
-    final name =
-        user == null
-            ? AppLocalizations.of(context, 'unknownUser')
-            : user.fullName.trim().isEmpty
-            ? user.username
-            : '${user.displayName} (${user.username})';
+    final name = user == null
+        ? AppLocalizations.of(context, 'unknownUser')
+        : user.fullName.trim().isEmpty
+        ? user.username
+        : '${user.displayName} (${user.username})';
     return DashboardCard(
       gradient: true,
       waves: true,
+      color: colors.dark ? const Color(0xFF172441) : const Color(0xFFF8FAFF),
+      tint: colors.dark ? const Color(0xFF203C60) : const Color(0xFFCFE5FC),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             const DashboardIcon(
               icon: Icons.person_rounded,
-              size: 62,
-              iconSize: 37,
+              size: 55,
+              iconSize: 31,
               circular: true,
             ),
             const SizedBox(width: 14),
@@ -141,24 +139,34 @@ class _FunctionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DashboardColors.of(context);
+    final surface = colors.dark
+        ? const Color(0xFF18213A)
+        : const Color(0xFFFAFCFF);
+    final tint = Color.alphaBlend(
+      feature.color.withValues(alpha: colors.dark ? .19 : .13),
+      surface,
+    );
     return DashboardCard(
       key: ValueKey('home-feature-${feature.name}'),
       onTap: () => feature.open(context),
       gradient: true,
+      color: Color.lerp(surface, tint, .45),
+      tint: tint,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Center(
               child: DashboardIcon(
                 icon: feature.icon,
-                size: 72,
-                iconSize: 42,
+                color: feature.color,
+                size: 58,
+                iconSize: 33,
                 circular: true,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -172,18 +180,10 @@ class _FunctionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: colors.tint,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    color: colors.accent,
-                    size: 20,
-                  ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.accent,
+                  size: 19,
                 ),
               ],
             ),

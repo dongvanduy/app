@@ -8,10 +8,11 @@ import 'chat_avatar.dart';
 import 'chat_theme.dart';
 
 class ChatConnectionLabel extends StatelessWidget {
-  const ChatConnectionLabel({super.key, required this.connection, this.onHeader = false, this.memberCount});
+  const ChatConnectionLabel({super.key, required this.connection, this.onHeader = false, this.memberCount, this.fontSize = 10});
   final ChatConnectionState connection;
   final bool onHeader;
   final int? memberCount;
+  final double fontSize;
   @override
   Widget build(BuildContext context) {
     final connected = connection == ChatConnectionState.connected;
@@ -22,7 +23,7 @@ class ChatConnectionLabel extends StatelessWidget {
         color: connected ? const Color(0xFF63D993) : const Color(0xFFFFCE70))),
       const SizedBox(width: 5),
       Flexible(child: Text('$members$status', maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 10, height: 1.4, color: onHeader ? Colors.white.withValues(alpha: .85) : ChatColors.of(context).muted))),
+        style: TextStyle(fontSize: fontSize, height: 1.4, color: onHeader ? Colors.white.withValues(alpha: .85) : ChatColors.of(context).muted))),
     ]);
   }
 }
