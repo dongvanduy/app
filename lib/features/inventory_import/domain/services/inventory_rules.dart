@@ -6,16 +6,22 @@ class InventoryLocationParser {
   static final RegExp _fullLocation = RegExp(
     r'^([A-Z]+)(\d+)-(\d+)-K(\d+)$',
   );
+
   static final RegExp _locationWithoutLevel = RegExp(
     r'^([A-Z]+)(\d+)-K(\d+)$',
   );
+
   static final RegExp _repairFullLocation = RegExp(
-    r'^(F0|[A-Z]+)(\d+)-(\d+)-K(\d+)$',
+    r'^([A-Z]+0?)(\d+)-(\d+)-K(\d+)$',
   );
+
   static final RegExp _repairLocationWithoutLevel = RegExp(
-    r'^(F0|[A-Z]+)(\d+)-K(\d+)$',
+    r'^([A-Z]+0?)(\d+)-K(\d+)$',
   );
-  static final RegExp _scrapCarton = RegExp(r'^CARTON-(\d+)$');
+
+  static final RegExp _scrapCarton = RegExp(
+    r'^CARTON-(\d+)$',
+  );
 
   const InventoryLocationParser._();
 
