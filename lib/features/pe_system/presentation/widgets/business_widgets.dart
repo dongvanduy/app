@@ -4,6 +4,7 @@ import '../providers/language_provider.dart';
 import '../../../../core/localization/language_converter.dart';
 
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/widgets/app_wave_background.dart';
 import 'dashboard_theme.dart';
 import 'dashboard_widgets.dart';
 
@@ -14,17 +15,21 @@ class BusinessPage extends StatelessWidget {
     required this.body,
     this.actions,
     this.maxWidth = 1100,
+    this.waveBackground = false,
   });
   final String title;
   final Widget body;
   final List<Widget>? actions;
   final double maxWidth;
+  final bool waveBackground;
 
   @override
   Widget build(BuildContext context) {
     final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-    return Scaffold(
+    final page = Scaffold(
+      backgroundColor: waveBackground ? Colors.transparent : null,
       appBar: AppBar(
+        backgroundColor: waveBackground ? Colors.transparent : null,
         title: Text(title, maxLines: 2),
         toolbarHeight: 64 * scale.clamp(1, 2),
         actions: actions,
@@ -40,6 +45,7 @@ class BusinessPage extends StatelessWidget {
         ),
       ),
     );
+    return waveBackground ? AppWaveBackground(child: page) : page;
   }
 }
 
