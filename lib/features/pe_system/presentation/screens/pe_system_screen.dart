@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../providers/code_provider.dart';
 import '../models/scan_outcome.dart';
 import '../widgets/code_item.dart';
@@ -239,7 +238,9 @@ class _PESystemScreenState extends State<_PESystemBody> {
         !provider.isBusy &&
         username.isNotEmpty &&
         provider.borrowableSerialNumbers.isNotEmpty;
+    final colors = DashboardColors.of(context);
     return BusinessPage(
+      waveBackground: true,
       title: bt(context, 'search'),
       body: Column(
         children: [
@@ -444,20 +445,29 @@ class _PESystemScreenState extends State<_PESystemBody> {
                     heroTag: 'pe_borrow',
                     tooltip: bt(context, 'pe_borrow'),
                     onPressed: canBorrow ? _openBorrowDialog : null,
-                    backgroundColor:
-                        canBorrow
-                            ? DashboardColors.of(context).accent
-                            : DashboardColors.of(context).tint,
-                    foregroundColor:
-                        canBorrow
-                            ? Colors.white
-                            : DashboardColors.of(context).muted,
-                    child: SvgPicture.asset(
-                      'assets/logo/fab.svg',
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.contain,
-                      semanticsLabel: 'Borrow scanned serial numbers',
+                    backgroundColor: colors.dark
+                        ? const Color(0xFF25375B)
+                        : const Color(0xFFE8F4FF),
+                    foregroundColor: canBorrow ? colors.accent : colors.muted,
+                    elevation: 5,
+                    disabledElevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(
+                        color: colors.dark ? colors.divider : Colors.white70,
+                      ),
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors.accent.withValues(
+                          alpha: canBorrow ? .16 : .09,
+                        ),
+                      ),
+                      child: const SizedBox.square(
+                        dimension: 42,
+                        child: Icon(Icons.sync_rounded, size: 29),
+                      ),
                     ),
                   ),
                 ),
